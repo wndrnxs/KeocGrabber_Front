@@ -1,0 +1,240 @@
+﻿<Page x:Class="KEOC_ImageGrabber.Page_Setup"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:KEOC_ImageGrabber"
+      xmlns:uc="clr-namespace:FalconWpf"
+      xmlns:sys="clr-namespace:System;assembly=mscorlib"
+      mc:Ignorable="d" 
+      d:DesignHeight="604" d:DesignWidth="1260"
+      Title="Page_Setup" Loaded="Page_Loaded">
+
+    <Page.DataContext>
+        <local:Page_SetupDataContext x:Name="datacontext"/>
+    </Page.DataContext>
+    <Page.Resources>
+        <x:Array x:Key="CBItemsCamera" Type="sys:String">
+            <sys:String>Camera 1</sys:String>
+            <!--<sys:String>Camera 2</sys:String>
+            <sys:String>Camera 3</sys:String>
+            <sys:String>Camera 4</sys:String>-->
+        </x:Array>
+        <x:Array x:Key="CBItemsLightChannel" Type="sys:String">
+            <sys:String>All</sys:String>
+            <sys:String>ch 1</sys:String>
+            <sys:String>ch 2</sys:String>
+            <sys:String>ch 3</sys:String>
+        </x:Array>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition Width="{Binding TestCtrlWidth}"/>
+        </Grid.ColumnDefinitions>
+        <GroupBox Header="Recipe">
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="50"/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4*"/>
+                            <ColumnDefinition Width="1*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="{Binding RecipePath, StringFormat=Recipe Name : {0}}" VerticalAlignment="Center" Margin="10,0"/>
+                            <TextBlock Grid.Row="1" Text="{Binding RecipeWriteTime, StringFormat=WriteTime : {0}}" VerticalAlignment="Center" Margin="10,0"/>
+                        </Grid>
+                        <UniformGrid Grid.Column="1" Rows="1">
+                            <UniformGrid Columns="1">
+                                <uc:UserButton Content="Open" FontSize="12" Click="bn_Open_Click" Margin="3" CornerRadius="3"/>
+                                <uc:UserButton Content="Save" FontSize="12" Click="bn_Save_Click" Margin="3" CornerRadius="3"/>
+                            </UniformGrid>
+                            <uc:UserButton Content="Set Recipe" FontSize="16" FontWeight="Bold" Click="bn_SetRecipe_Click" Margin="3" CornerRadius="3" IsEnabled="{Binding IsRecipeLoaded}"/>
+                        </UniformGrid>
+                    </Grid>
+                </Grid>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+                    <Grid Grid.Column="0">
+                        <GroupBox Header="ROI">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="50"/>
+                                    <RowDefinition/>
+                                </Grid.RowDefinitions>
+                                <GroupBox >
+                                    <GroupBox.Header>
+                                        <WrapPanel>
+                                            <TextBlock Text="Camera Select"/>
+                                            <uc:UserButton Content="Camera Config" Click="bn_CamConfig_Click" Padding="0" Margin="10,0,0,0" CornerRadius="3" Width="100"/>
+                                        </WrapPanel>
+                                    </GroupBox.Header>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*"/>
+                                            <ColumnDefinition Width="1*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <uc:UserCombo UCBTitle="Camera" UCBUnitWidth="0" UCBTitleWidth="80" UCBItemSource="{StaticResource CBItemsCamera}" UCBSelectedIndex="{Binding CamIndex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <UniformGrid Grid.Column="1" Rows="1">
+                                            <uc:UserButton Content="Grab" Click="bn_Grab_Click" CornerRadius="3" Margin="3" IsEnabled="{Binding IsGrabable}"/>
+                                            <uc:UserButton Content="Stop" Click="bn_Stop_Click" CornerRadius="3" Margin="3" IsEnabled="{Binding IsGrabbing}"/>
+                                        </UniformGrid>
+                                    </Grid>
+                                </GroupBox>
+                                <uc:ImageViewer Grid.Row="1" x:Name="imgview" IsEditor="True"/>
+                            </Grid>
+                        </GroupBox>
+                    </Grid>
+                    <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Width="3"/>
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <GroupBox Header="ROI Setting">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="30"/>
+                                    <RowDefinition/>
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Click="bn_ROIAlign_Click" Tag="1" ToolTip="Align Left">
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="/icons/objects_align_left.png"/>
+                                            </DockPanel>
+                                        </Button>
+                                        <Button Click="bn_ROIAlign_Click" Tag="2" ToolTip="Align Center">
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="/icons/objects_align_center.png"/>
+                                            </DockPanel>
+                                        </Button>
+                                        <Button Click="bn_ROIAlign_Click" Tag="3" ToolTip="Align Right">
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="/icons/objects_align_right.png"/>
+                                            </DockPanel>
+                                        </Button>
+                                        <Border Width="10"/>
+                                        <Button Click="bn_ROIAlign_Click" Tag="4" ToolTip="Align Top">
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="/icons/objects_align_top.png"/>
+                                            </DockPanel>
+                                        </Button>
+                                        <Button Click="bn_ROIAlign_Click" Tag="5" ToolTip="Align Middle">
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="/icons/objects_align_middle.png"/>
+                                            </DockPanel>
+                                        </Button>
+                                        <Button Click="bn_ROIAlign_Click" Tag="6" ToolTip="Align Bottom">
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="/icons/objects_align_bottom.png"/>
+                                            </DockPanel>
+                                        </Button>
+                                        <Border Width="10"/>
+                                        <Button Click="bn_ROIAlign_Click" Tag="7" ToolTip="fitting height">
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="/icons/objects_size_vertical.png"/>
+                                            </DockPanel>
+                                        </Button>
+                                        <Button Click="bn_ROIAlign_Click" Tag="8" ToolTip="fitting width">
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="/icons/objects_size_horizontal.png"/>
+                                            </DockPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                                <DataGrid Grid.Row="1" ItemsSource="{Binding DTCropROI, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DataGridStyle}" SelectedIndex="{Binding SelectedROI, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PreviewMouseUp="DataGrid_PreviewMouseDown">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="CellID" Binding="{Binding CellID}" Width="1*"/>
+                                        <DataGridTextColumn Header="X"      Binding="{Binding X}"      Width="1*"/>
+                                        <DataGridTextColumn Header="Y"      Binding="{Binding Y}"      Width="1*"/>
+                                        <DataGridTextColumn Header="Width"  Binding="{Binding Width}"  Width="1*"/>
+                                        <DataGridTextColumn Header="Height" Binding="{Binding Height}" Width="1*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </GroupBox>
+                        <GroupBox Grid.Row="1" Header="Camera Setting">
+                            <UniformGrid Rows="1">
+                                <GroupBox Header="Camera">
+                                    <UniformGrid Columns="1">
+                                        <uc:UserSlider USTitle="Exposure Time" USValue="{Binding CamExposure1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="255" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                        <uc:UserSlider USTitle="Gain" USValue="{Binding CamGain1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="255" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                    </UniformGrid>
+                                </GroupBox>
+                                <GroupBox Header="Light">
+                                    <UniformGrid Columns="1">
+                                        <uc:UserButton Content="Light On All" CornerRadius="3" Click="bn_LightOnAll_Click"/>
+                                        <uc:UserSlider USTitle="All ch" USValue="{Binding LightValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                        <Grid> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
+                                            <uc:UserSlider USTitle="Ch 1" USValue="{Binding LightCh1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                            <uc:UserButton Grid.Column="1" CornerRadius="3" Margin="3" Content="On" Click="bn_Ch_Click" Tag="1"/>
+                                        </Grid>
+                                        <Grid> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
+                                            <uc:UserSlider USTitle="Ch 2" USValue="{Binding LightCh2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                            <uc:UserButton Grid.Column="1" CornerRadius="3" Margin="3" Content="On" Click="bn_Ch_Click" Tag="2"/>
+                                        </Grid>
+                                        <Grid> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
+                                            <uc:UserSlider USTitle="Ch 3" USValue="{Binding LightCh3, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                            <uc:UserButton Grid.Column="1" CornerRadius="3" Margin="3" Content="On" Click="bn_Ch_Click" Tag="3"/>
+                                        </Grid>
+                                        <Grid> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
+                                            <uc:UserSlider USTitle="Ch 4" USValue="{Binding LightCh4, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                            <uc:UserButton Grid.Column="1" CornerRadius="3" Margin="3" Content="On" Click="bn_Ch_Click" Tag="4"/>
+                                        </Grid>
+                                    </UniformGrid>
+                                </GroupBox>
+                                <!--<GroupBox Header="Cam 2">
+                                    <UniformGrid Columns="1">
+                                        <uc:UserSlider USTitle="Exposure Time" USValue="{Binding CamExposure2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="255" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                        <uc:UserSlider USTitle="Gain" USValue="{Binding CamGain2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="255" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                    </UniformGrid>
+                                </GroupBox>
+                                <GroupBox Header="Cam 3">
+                                    <UniformGrid Columns="1">
+                                        <uc:UserSlider USTitle="Exposure Time" USValue="{Binding CamExposure3, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="255" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                        <uc:UserSlider USTitle="Gain" USValue="{Binding CamGain3, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="255" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                    </UniformGrid>
+                                </GroupBox>
+                                <GroupBox Header="Cam 4">
+                                    <UniformGrid Columns="1">
+                                        <uc:UserSlider USTitle="Exposure Time" USValue="{Binding CamExposure4, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="255" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                        <uc:UserSlider USTitle="Gain" USValue="{Binding CamGain4, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="255" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                    </UniformGrid>
+                                </GroupBox>-->
+                            </UniformGrid>
+                        </GroupBox>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </GroupBox>
+        <Grid Grid.Column="2" IsEnabled="{Binding IsAdmin}">
+            <WrapPanel>
+                <GroupBox Header="Test" Width="120">
+                    <StackPanel>
+                        <UniformGrid Columns =" 1">
+                            <uc:UserButton Content="Test Image" Click="bn_ImageTest_Click"/>
+                            <uc:UserButton Content="Test Msg" Click="bn_MessageTest_Click"/>
+                        </UniformGrid>
+                        <GroupBox Header="Clients">
+                            <ListBox Name="listbox_client" Height="120" />
+                        </GroupBox>
+                    </StackPanel>
+                </GroupBox>
+            </WrapPanel>
+        </Grid>
+    </Grid>
+</Page>

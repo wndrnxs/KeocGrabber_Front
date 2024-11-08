@@ -1,0 +1,245 @@
+﻿/*
+ *******************************************************************************
+ * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
+ * - 주식회사 태루 -
+ *******************************************************************************
+ */
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace KEOC_ImageGrabber
+{
+    public enum EN_GRABSTATE
+    {
+        None = 0,
+        Grab,
+        End
+    }
+
+    public enum EN_READYSTATE
+    {
+        None = 0,
+        Ready,
+        Alarm
+    }
+
+    static class G
+    {
+        static public MainWindow MAIN = null;
+        //static public 
+        static public GrabberManager GRABBER = new GrabberManager();
+        static public LightManager LIGHT = new LightManager();
+        static public VieworksCamera[] CAMERA = new VieworksCamera[Define.CAM_COUNT];
+
+        static public ProtocallManager COMM = new ProtocallManager();
+        static public ImageManager IMAGEMANAGER = new ImageManager();
+        static public MessageManager MSGPROC = new MessageManager();
+
+        static public SystemParam SYSTEM = new SystemParam();
+        static public Logger LOGGER = new Logger();
+        static public DiskManager DISKMANAGER = new DiskManager();
+
+        static public RecipeParam CURRRECIPE = new RecipeParam();
+
+        // Member
+        static public EN_AUTHORITY USERLEVEL = EN_AUTHORITY.EN_OPERATOR;
+        static public EN_GRABSTATE GRABSTATE = EN_GRABSTATE.None;
+        static public EN_READYSTATE READYSTATE = EN_READYSTATE.None;
+        // ~Member
+
+        #region Program Version
+        static public DateTime fn_GetBuildDate()
+        {
+            Version version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+
+            int day = version.Build;
+            System.DateTime dtBuild = (new System.DateTime(2000, 1, 1)).AddDays(day);
+
+            int intSeconds = version.Revision;
+            intSeconds = intSeconds * 2;
+            dtBuild = dtBuild.AddSeconds(intSeconds);
+
+            System.Globalization.DaylightTime daylingTime = System.TimeZone.CurrentTimeZone.GetDaylightChanges(dtBuild.Year);
+            if (System.TimeZone.IsDaylightSavingTime(dtBuild, daylingTime))
+                dtBuild = dtBuild.Add(daylingTime.Delta);
+
+            return dtBuild;
+        }
+
+        static public string fn_GetVersion()
+        {
+            return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString();
+        }
+
+        static public string fn_GetVer()
+        {
+            return $"{G.fn_GetBuildDate():Ver.yyyyMMdd_HH}H";
+        }
+        #endregion
+
+        #region Log
+        /// <summary>
+        /// Log 작성.
+        /// </summary>
+        /// <param name="strMsg">로그 메시지</param>
+        static public void WriteLog(string strMsg, bool bError = false)
+        {
+            var st = new StackTrace();
+            var sf = st.GetFrame(1);
+            var sm = sf.GetMethod();
+            strMsg = strMsg.Insert(0, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff},{G.MSGPROC.CellID},");
+
+            if (G.SYSTEM.CallStack)
+            {
+                strMsg = strMsg.Insert(strMsg.Length - 1, $",{sm.DeclaringType.Name},{sm.Name}");
+            }
+            Console.WriteLine( strMsg );
+            MAIN?.fn_WriteLog(strMsg, bError);
+            LOGGER?.fn_PushMsg(strMsg, sm.DeclaringType.Name, sm.Name, bError);
+        }
+        #endregion
+
+
+        /// <summary>
+        /// Device Init
+        /// </summary>
+        static public void Init()
+        {
+            DISKMANAGER.DstImgPath = G.SYSTEM.ImagePath;
+            DISKMANAGER.DstLogPath = G.SYSTEM.LogPath;
+            DISKMANAGER.DstSharedPath = G.SYSTEM.SharedPath;
+            DISKMANAGER.DstImgExt = G.SYSTEM.ImageExt;
+            DISKMANAGER.DstLogExt = G.SYSTEM.LogExt;
+            DISKMANAGER.MaintenaceDay = G.SYSTEM.MaintenanceDays;
+
+            DISKMANAGER.fn_StartThread();
+            LOGGER.fn_Init(G.SYSTEM.LogPath);
+            G.WriteLog($"Init Start.");
+
+            MSGPROC.fn_Init();
+
+            //DISKMANAGER.ImageSavePath = G.SYSTEM.ImagePath;
+
+            //MessageAnalyzer("ANGLEVIEW.ReceiveReady:A123123412341234:0:2:2:3/");
+
+            //G.SYSTEM.Camera1DCF = "PatternGenerator_1024_100fps_Mono.sdcf";
+            GRABBER.fn_Init(Define.CAM_COUNT, new List<string>() {G.SYSTEM.Camera1DCF});
+            //GRABBER.fn_Init(Define.CAM_COUNT, new List<string>() {G.SYSTEM.Camera1DCF, G.SYSTEM.Camera2DCF, G.SYSTEM.Camera3DCF, G.SYSTEM.Camera4DCF });
+
+            //IMAGEMANAGER.fn_Init(Define.CAM_COUNT, GRABBER.ImageWidth, G.SYSTEM.GrabHeight, 1);
+            IMAGEMANAGER.fn_Init(Define.CAM_COUNT, 16384, G.SYSTEM.GrabHeight, 1);
+
+            LIGHT.fn_Init();
+
+            for (int i = 0; i < Define.CAM_COUNT; i++)
+            {
+                CAMERA[i] = new VieworksCamera();
+            }
+            
+            CAMERA[0].fn_Init(G.SYSTEM.CameraPort1);
+            //CAMERA[1].fn_Init(G.SYSTEM.CameraPort2);
+            //CAMERA[2].fn_Init(G.SYSTEM.CameraPort3);
+            //CAMERA[3].fn_Init(G.SYSTEM.CameraPort4);
+
+            //COMM.fn_Init(G.SYSTEM.MasterIP, G.SYSTEM.MasterPort);
+            COMM.fn_Init(G.SYSTEM.MasterPort);
+            G.WriteLog($"Init End.");
+        }
+
+        static public void Final()
+        {
+            G.WriteLog($"Final Start.");
+            DISKMANAGER.fn_StopThread();
+
+            MSGPROC.fn_Final();
+
+            LIGHT.fn_Final();
+             
+            COMM.fn_Final();
+
+            IMAGEMANAGER.fn_Final();
+//#if !DEBUG
+            GRABBER.fn_Final();
+//#endif
+
+            for (int i = 0; i < Define.CAM_COUNT; i++)
+            {
+                CAMERA[i].fn_Final();
+            }
+
+            G.WriteLog($"Final End.");
+            G.WriteLog($"Program End.");
+            LOGGER.fn_Final();
+        }
+
+        static public void SetGrabHeight(int height)
+        {
+            G.SYSTEM.GrabHeight = height;
+            IMAGEMANAGER.fn_CreateBuffer(Define.CAM_COUNT, G.GRABBER.ImageWidth, G.SYSTEM.GrabHeight, G.GRABBER.ImageChannel);
+        }
+
+        static public void GrabStart()
+        {
+            if (GRABSTATE != EN_GRABSTATE.Grab)
+            {
+                IMAGEMANAGER.InitAttachCount(0);
+                //IMAGEMANAGER.InitAttachCount(1);
+                //IMAGEMANAGER.InitAttachCount(2);
+                //IMAGEMANAGER.InitAttachCount(3);
+                SetCurrRecipe();
+                Thread.Sleep(100);
+                LIGHT.fn_LightOnAll();
+                Thread.Sleep(100);
+                GRABBER.fn_GrabStart();
+                GRABSTATE = EN_GRABSTATE.Grab;
+            }
+        }
+
+        static public void SetCurrRecipe()
+        {
+            LIGHT.fn_SetLightValue(1, CURRRECIPE.LightCh1);
+            LIGHT.fn_SetLightValue(2, CURRRECIPE.LightCh2);
+            LIGHT.fn_SetLightValue(3, CURRRECIPE.LightCh3);
+            LIGHT.fn_SetLightValue(4, CURRRECIPE.LightCh4);
+
+            CAMERA[0].fn_SetDigitalGain(CURRRECIPE.CamGain1);
+            //CAMERA[1].fn_SetDigitalGain(CURRRECIPE.CamGain2);
+            //CAMERA[2].fn_SetDigitalGain(CURRRECIPE.CamGain3);
+            //CAMERA[3].fn_SetDigitalGain(CURRRECIPE.CamGain4);
+
+            CAMERA[0].fn_SetExposureTime(CURRRECIPE.CamExposure1);
+            //CAMERA[1].fn_SetExposureTime(CURRRECIPE.CamExposure2);
+            //CAMERA[2].fn_SetExposureTime(CURRRECIPE.CamExposure3);
+            //CAMERA[3].fn_SetExposureTime(CURRRECIPE.CamExposure4);
+        }
+
+        static public void GrabStop()
+        {
+            if (GRABSTATE == EN_GRABSTATE.Grab)
+            {
+                LIGHT.fn_LightOffAll();
+                GRABBER.fn_GrabStop();
+                GRABSTATE = EN_GRABSTATE.End;
+            }
+        }
+    }
+
+    static public class Define
+    {
+        //public const int CAM_COUNT = 4;
+        public const int CAM_COUNT = 1;
+        public const int LIGHT_COUNT = 1;
+        public const int LIGHT_CTRL_CH_COUNT = LIGHT_COUNT + 6;
+
+        public const int MESSAGEPOP_TIMEOUT = 3000;
+
+        public const string PASSWORD_OP = "";
+        public const string PASSWORD_MA = "2";
+        public const string PASSWORD_EN = "3";
+    }
+}

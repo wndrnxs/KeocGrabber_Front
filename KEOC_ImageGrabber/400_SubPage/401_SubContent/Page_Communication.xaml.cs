@@ -1,0 +1,80 @@
+﻿/*
+ *******************************************************************************
+ * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
+ * - 주식회사 태루 -
+ *******************************************************************************
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using System.Windows.Threading;
+
+namespace KEOC_ImageGrabber
+{
+    public class Page_CommnucationDataContext : MVVMBase.IPropertyChanged
+    {
+        SolidColorBrush brushConnMaster = Brushes.Transparent;
+        SolidColorBrush brushConnCam    = Brushes.Transparent;
+        SolidColorBrush brushConnGrabber = Brushes.Transparent;
+        SolidColorBrush brushConnLight  = Brushes.Transparent;
+
+        public SolidColorBrush ConnMaster { get { return brushConnMaster; } set { brushConnMaster = value; OnPropertyChanged(); } }
+        public SolidColorBrush ConnCam    { get { return brushConnCam   ; } set { brushConnCam    = value; OnPropertyChanged(); } }
+        public SolidColorBrush ConnGrabber { get { return brushConnGrabber; } set { brushConnGrabber = value; OnPropertyChanged(); } }
+        public SolidColorBrush ConnLight  { get { return brushConnLight ; } set { brushConnLight  = value; OnPropertyChanged(); } }
+    }
+    /// <summary>
+    /// Page_Communication.xaml에 대한 상호 작용 논리
+    /// </summary>
+    public partial class Page_Communication : Page
+    {
+        DispatcherTimer timer = new DispatcherTimer();
+        public Page_Communication()
+        {
+            InitializeComponent();
+
+            timer.Interval = TimeSpan.FromMilliseconds(1000);
+            timer.Tick += timer_ConnUpdate;
+            timer.Start();
+        }
+
+        private void timer_ConnUpdate(object sender, EventArgs e)
+        {
+            try
+            {
+                string strClr = "";
+                strClr = G.COMM.IsConnected ? "OKBrush" : "NGBrush";
+                datacontext.ConnMaster = (SolidColorBrush)G.MAIN.resource[strClr];
+
+                strClr = G.GRABBER.IsInited ? "OKBrush" : "NGBrush";
+                datacontext.ConnGrabber = (SolidColorBrush)G.MAIN.resource[strClr];
+
+                bool bRet = true;
+                for(int i = 0; i < Define.CAM_COUNT; i++)
+                {
+                    bRet &= G.CAMERA[i] != null ? G.CAMERA[i].IsConnected : false;
+                }
+
+                strClr = bRet ? "OKBrush" : "NGBrush";
+                datacontext.ConnCam = (SolidColorBrush)G.MAIN.resource[strClr];
+
+                bRet = G.LIGHT.fn_IsConnected();
+
+                strClr = bRet ? "OKBrush" : "NGBrush";
+                datacontext.ConnLight = (SolidColorBrush)G.MAIN.resource[strClr];
+            }
+            catch{}
+        }
+    }
+}
