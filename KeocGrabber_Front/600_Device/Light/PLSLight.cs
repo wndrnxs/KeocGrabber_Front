@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using System;
@@ -13,7 +12,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
     internal class PLSLight
     {
@@ -187,7 +186,7 @@ namespace KEOC_ImageGrabber
             }
         }
 
-        //! 명령 전송 실패를 에러 로그로 남김.  Taeroo - 2026/08/11
+        //! 명령 전송 실패를 에러 로그로 남김.  2026/08/11
         //  - SerialComm.WriteValue()는 포트가 닫혀 있으면 예외 없이 false만 반환하므로,
         //    조명 OFF 명령이 유실되어 조명이 켜진 채 남아도 로그에 흔적이 없었음.
         /// <summary>

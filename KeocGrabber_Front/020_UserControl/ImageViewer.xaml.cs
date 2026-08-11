@@ -520,7 +520,7 @@ namespace FalconWpf
                     }
                     catch (Exception ex)
                     {
-                        KEOC_ImageGrabber.G.WriteLog($"Image Open Fail : {ex.Message}", true);
+                        KeocGrabber_Front.G.WriteLog($"Image Open Fail : {ex.Message}", true);
                     }
                 }));
 
@@ -1673,7 +1673,7 @@ namespace FalconWpf
             int otheridx = (m_rectROI.Length - 1) - SelectedObject;
             Grid otherRectangle = lib_Canvas.Children[otheridx + (int)EnGrip.Count] as Grid;
 
-            //! 1 : left, 2 : center, 3 : right, 4 : top, 5 : middle, 6 : bottom, 7 : vertical, 8 : horizontal.  Taeroo-kgseon - 2024/08/26  18:48
+            //! 1 : left, 2 : center, 3 : right, 4 : top, 5 : middle, 6 : bottom, 7 : vertical, 8 : horizontal.  2024/08/26  18:48
             switch (mode)
             {
                 case 1: // left

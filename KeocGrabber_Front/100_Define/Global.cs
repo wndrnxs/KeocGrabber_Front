@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using System;
@@ -12,7 +11,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
     public enum EN_GRABSTATE
     {
@@ -52,14 +51,14 @@ namespace KEOC_ImageGrabber
         static public EN_READYSTATE READYSTATE = EN_READYSTATE.None;
         // ~Member
 
-        //! 그랩 타임아웃 감시 타이머.  Taeroo - 2026/07/27
+        //! 그랩 타임아웃 감시 타이머.  2026/07/27
         //  - 트리거 누락 등으로 그랩 완료 시점이 오지 않으면 조명이 계속 켜져 있으므로,
         //    설정 시간(G.SYSTEM.GrabTimeout) 경과 시 강제로 조명을 끄고 그랩을 종료함.
         //  - GrabStart는 통신 스레드, 그랩 완료는 MIL 콜백 스레드에서 호출되므로 lock으로 보호.
         static private readonly System.Timers.Timer TIMER_GRAB = new System.Timers.Timer() { AutoReset = false };
         static private readonly object LOCK_GRABTIMER = new object();
 
-        //! 타임아웃으로 강제 종료된 그랩 표시.  Taeroo - 2026/08/11
+        //! 타임아웃으로 강제 종료된 그랩 표시.  2026/08/11
         //  - 센서 트리거 이후 스캔 도중에 타임아웃이 만료되면 조명이 꺼진 상태로 남은 라인이
         //    스캔되어 하단이 어두운 불량 이미지가 만들어짐.
         //  - MIL은 M_STOP 이후에도 이미 버퍼에 채워진 프레임을 콜백으로 전달하므로,
@@ -179,7 +178,7 @@ namespace KEOC_ImageGrabber
 
             MSGPROC.fn_Final();
 
-            //! 종료 시 조명 강제 OFF.  Taeroo - 2026/08/11
+            //! 종료 시 조명 강제 OFF.  2026/08/11
             //  - GrabStop()은 GRABSTATE가 Grab일 때만 조명을 끄므로, Setup 화면에서
             //    수동으로 켠 조명은 켜진 채 프로그램이 종료됨.
             //  - 명령의 실제 전송은 SerialComm.Close()의 송신 큐 flush가 보장.
@@ -223,7 +222,7 @@ namespace KEOC_ImageGrabber
                 LIGHT.fn_LightOnAll();
                 Thread.Sleep(100);
 
-                //! 상태 전이와 타임아웃 무장을 그랩 시작보다 먼저 수행.  Taeroo - 2026/08/11
+                //! 상태 전이와 타임아웃 무장을 그랩 시작보다 먼저 수행.  2026/08/11
                 //  - 그랩이 매우 빨리 완료되면 MIL 콜백의 fn_StopGrabTimer()가 타이머 무장보다
                 //    먼저 실행되어, 이미 끝난 그랩에 타이머가 걸린 채 GRABSTATE가 Grab으로
                 //    덮어써짐. 그 동안 신규 START가 모두 무시되므로 순서를 반대로 둠.
@@ -279,7 +278,7 @@ namespace KEOC_ImageGrabber
                 if (GRABSTATE != EN_GRABSTATE.Grab)
                     return;
 
-                //! 상태 전이를 먼저 확정하고 lock을 해제.  Taeroo - 2026/08/11
+                //! 상태 전이를 먼저 확정하고 lock을 해제.  2026/08/11
                 //  - 중복 진입은 위 조건으로 차단됨.
                 GRABSTATE = EN_GRABSTATE.End;
 
@@ -287,7 +286,7 @@ namespace KEOC_ImageGrabber
                 m_bGrabInvalid = true;
             }
 
-            //! 장비 제어는 반드시 lock 밖에서 수행.  Taeroo - 2026/08/11
+            //! 장비 제어는 반드시 lock 밖에서 수행.  2026/08/11
             //  - MIL MdigProcess(M_STOP)은 진행 중인 그랩 콜백이 끝날 때까지 대기하는데,
             //    그 콜백 스레드는 ImageManager에서 fn_StopGrabTimer()의 lock을 기다림.
             //    lock을 쥔 채로 fn_GrabStop()을 호출하면 서로를 기다려 교착 상태가 됨.

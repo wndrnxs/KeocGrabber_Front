@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using System;
@@ -26,7 +25,7 @@ using FalconWpf;
 using Microsoft.Win32;
 using OpenCvSharp;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
     public class Page_SetupDataContext : MVVMBase.IPropertyChanged
     {
@@ -468,7 +467,7 @@ namespace KEOC_ImageGrabber
             {
                 int nMode = 0;
                 int.TryParse(ub.Tag.ToString(), out nMode);
-                //! 1 : left, 2 : center, 3 : right, 4 : top, 5 : middle, 6 : bottom, 7 : vertical, 8 : horizontal.  Taeroo-kgseon - 2024/08/26  18:48
+                //! 1 : left, 2 : center, 3 : right, 4 : top, 5 : middle, 6 : bottom, 7 : vertical, 8 : horizontal.  2024/08/26  18:48
                 imgview.AlignObject(nMode);
             }
 

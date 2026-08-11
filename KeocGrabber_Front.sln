@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34525.116
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KEOC_ImageGrabber", "KEOC_ImageGrabber\KEOC_ImageGrabber.csproj", "{FE51CF8F-223A-4BB8-A535-D843E5B9700D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeocGrabber_Front", "KeocGrabber_Front\KeocGrabber_Front.csproj", "{FE51CF8F-223A-4BB8-A535-D843E5B9700D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

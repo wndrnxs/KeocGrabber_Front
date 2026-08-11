@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using System;
@@ -18,7 +17,7 @@ using OpenCvSharp;
 using OpenCvSharp.Flann;
 using OpenCvSharp.WpfExtensions;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
     class ImageManager
     {
@@ -138,7 +137,7 @@ namespace KEOC_ImageGrabber
         }
         public void AttachImage(int idx, Mat img)
         {
-            //! 타임아웃으로 무효화된 그랩의 지각 프레임은 폐기.  Taeroo - 2026/08/11
+            //! 타임아웃으로 무효화된 그랩의 지각 프레임은 폐기.  2026/08/11
             //  - 조명이 꺼진 뒤 스캔된 라인이 붙어 이미지가 '완료'로 처리되면,
             //    하단이 어두운 불량 이미지가 정상 결과로 저장/전송되기 때문.
             //  - 로그와 조명 OFF는 회차당 1회만 수행.
@@ -186,7 +185,7 @@ namespace KEOC_ImageGrabber
                 // Grab 완료.
                 if (m_nGrabHeight <= grabEndY)
                 {
-                    //! 조명 OFF를 그랩 종료 처리보다 먼저 수행.  Taeroo - 2026/07/27
+                    //! 조명 OFF를 그랩 종료 처리보다 먼저 수행.  2026/07/27
                     //  - ComplateImage() 내부의 MIL Grab Stop에서 예외가 발생하면 조명이 켜진 채로 남고,
                     //    이미 GRABSTATE가 End로 바뀌어 G.GrabStop()의 조명 OFF도 동작하지 않기 때문.
                     G.fn_StopGrabTimer();

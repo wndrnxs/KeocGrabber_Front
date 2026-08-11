@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using System;
@@ -13,9 +12,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
-    //! 이미지 요청 1건.  Taeroo - 2026/08/11
+    //! 이미지 요청 1건.  2026/08/11
     //  - 큐 적체 판단을 위해 수신 시각이 필요하여 Tuple에서 클래스로 변경.
     class ImageRequest
     {
@@ -35,7 +34,7 @@ namespace KEOC_ImageGrabber
 
     class MessageManager
     {
-        //! GC 회피용 ROI 이미지 객체.  Taeroo-kgseon - 2024/08/27  15:40
+        //! GC 회피용 ROI 이미지 객체.  2024/08/27  15:40
         //  - fn_ProcRequest 동작에 지역 변수 였으나, GC 동작 예방을 위해 맴버변수로 변경.
         OpenCvSharp.Mat matROI1, matROI2;
         List<ImageRequest> m_listRequest = new List<ImageRequest>();
@@ -91,7 +90,7 @@ namespace KEOC_ImageGrabber
             mutex.ReleaseMutex();
         }
 
-        //! 큐에 오래 잔류한 요청 폐기.  Taeroo - 2026/08/11
+        //! 큐에 오래 잔류한 요청 폐기.  2026/08/11
         //  - 그랩 타임아웃 등으로 이미지가 완성되지 않으면 fn_PopRequest가 해당 요청을
         //    큐 뒤로 계속 밀어내기만 하므로 영구히 잔류함.
         //  - fn_PopRequest와 같은 스레드(THREAD_MESSAGE)에서만 호출하여 인덱스 경합을 피함.
@@ -140,7 +139,7 @@ namespace KEOC_ImageGrabber
                 request = m_listRequest[0];
                 if (G.IMAGEMANAGER.IsImageCompalte != null)
                 {
-                    //! 완성된 이미지 먼저 전송 코드.  Taeroo-kgseon - 2024/08/02  13:49
+                    //! 완성된 이미지 먼저 전송 코드.  2024/08/02  13:49
                     if (G.IMAGEMANAGER.IsImageCompalte[0])
                     {
                         if (mutex.WaitOne(3000))

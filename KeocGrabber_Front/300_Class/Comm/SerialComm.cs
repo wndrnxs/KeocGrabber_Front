@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using System;
@@ -15,7 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
     public class SerialComm
     {
@@ -260,7 +259,7 @@ namespace KEOC_ImageGrabber
         {
             bool bRet = false;
 
-            //! 포트를 닫기 전 송신 큐를 비움.  Taeroo - 2026/08/11
+            //! 포트를 닫기 전 송신 큐를 비움.  2026/08/11
             //  - WriteValue()는 큐 적재만 하고 실제 전송은 THREAD_SENDDATA가 담당하므로,
             //    종료 직전에 넣은 명령(조명 OFF 등)이 전송되기 전에 폐기될 수 있음.
             fn_FlushSendQueue(FLUSH_TIMEOUT);

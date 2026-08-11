@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace KEOC_ImageGrabber.Properties {
+namespace KeocGrabber_Front.Properties {
     
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]

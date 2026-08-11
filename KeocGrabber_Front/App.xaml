@@ -1,7 +1,7 @@
-﻿<Application x:Class="KEOC_ImageGrabber.App"
+﻿<Application x:Class="KeocGrabber_Front.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:KEOC_ImageGrabber"
+             xmlns:local="clr-namespace:KeocGrabber_Front"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
         <ResourceDictionary Source="ResourceDictionary.xaml"/>

@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using OpenCvSharp.Flann;
@@ -24,7 +23,7 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
     public class Page_MainDataContext : MVVMBase.IPropertyChanged
     {
@@ -41,7 +40,7 @@ namespace KEOC_ImageGrabber
         double dTestBtnHeight = 0;
         public double TestBtnHeight { get { return dTestBtnHeight; } set { dTestBtnHeight = value; OnPropertyChanged(); } }
 
-        //! 가상 요청 주입 버튼 표시 높이.  Taeroo - 2026/08/11
+        //! 가상 요청 주입 버튼 표시 높이.  2026/08/11
         //  - 큐 적체/자동 폐기 확인용. Operator 권한일 때만 노출.
         double dTestMsgBtnHeight = 0;
         public double TestMsgBtnHeight { get { return dTestMsgBtnHeight; } set { dTestMsgBtnHeight = value; OnPropertyChanged(); } }
@@ -64,7 +63,7 @@ namespace KEOC_ImageGrabber
         {
             datacontext.TestBtnHeight = G.USERLEVEL == EN_AUTHORITY.EN_ENGINEER ? 20 : 0;
 
-            //! 가상 요청 주입 버튼은 Operator 권한일 때만 노출.  Taeroo - 2026/08/11
+            //! 가상 요청 주입 버튼은 Operator 권한일 때만 노출.  2026/08/11
             datacontext.TestMsgBtnHeight = G.USERLEVEL == EN_AUTHORITY.EN_OPERATOR ? 30 : 0;
         }
 
@@ -220,7 +219,7 @@ namespace KEOC_ImageGrabber
             G.GrabStart();
         }
 
-        //! 큐 적체 테스트용 가상 요청 주입.  Taeroo - 2026/08/11
+        //! 큐 적체 테스트용 가상 요청 주입.  2026/08/11
         //  - 실제 START 수신 경로(ProtocallManager.MessageAnalyzer)에서 큐 적재 부분만 재현.
         //  - 그랩(G.GrabStart)과 상위 응답(SendAck)은 수행하지 않음.
         //    그랩이 완료되면 요청이 소비되어 큐가 쌓이지 않고, 상위로 가짜 응답이 나가면 안 되기 때문.

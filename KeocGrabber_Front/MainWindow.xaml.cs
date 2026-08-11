@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using System;
@@ -22,7 +21,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using FalconWpf;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
     public class MainWindowDataContext : MVVMBase.IPropertyChanged
     {
@@ -65,7 +64,7 @@ namespace KEOC_ImageGrabber
 #if DEBUG
             G.USERLEVEL = EN_AUTHORITY.EN_ENGINEER;
 #endif
-            //! 시작 시점의 권한으로 테스트 영역 표시 상태를 초기화.  Taeroo - 2026/08/11
+            //! 시작 시점의 권한으로 테스트 영역 표시 상태를 초기화.  2026/08/11
             //  - 기존에는 DEBUG 빌드에서만 호출되어, Release에서는 초기 권한(Operator)에
             //    해당하는 버튼이 권한을 한 번 변경하기 전까지 표시되지 않았음.
             mc_pageMain.fn_ViewTestArea();

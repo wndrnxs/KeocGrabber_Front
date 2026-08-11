@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using System.Collections.Generic;
@@ -9,7 +8,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Resources;
 using System.Windows.Data;
-using KEOC_ImageGrabber.Properties;
+using KeocGrabber_Front.Properties;
 
 namespace MVVMBase
 {

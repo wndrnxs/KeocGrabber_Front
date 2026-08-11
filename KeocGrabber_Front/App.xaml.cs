@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
     /// <summary>
     /// App.xaml에 대한 상호 작용 논리
@@ -47,14 +47,14 @@ namespace KEOC_ImageGrabber
         {
             base.OnStartup(e);
 
-            string mutexName = "KEOC_ImageGrabber";
+            string mutexName = "KeocGrabber_Front";
             bool createNew;
 
             mutex = new Mutex(true, mutexName, out createNew);
 
             if (!createNew)
             {
-                MessageBox.Show("Already Running Program.", "KEOC_ImageGrabber", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Already Running Program.", "KeocGrabber_Front", MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown();
             }
         }

@@ -13,7 +13,7 @@ using System.Windows.Controls;
 using System.Runtime.InteropServices.ComTypes;
 using System.Diagnostics;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
     internal class TCPIPServer
     {

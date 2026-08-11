@@ -1,7 +1,6 @@
 ﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
- * - 주식회사 태루 -
  *******************************************************************************
  */
 using OpenCvSharp;
@@ -15,9 +14,9 @@ using System.Threading.Tasks;
 using System.Windows.Interop;
 using System.Windows.Markup;
 
-namespace KEOC_ImageGrabber
+namespace KeocGrabber_Front
 {
-    // Header 10byte, data.  Taeroo-kgseon - 2024/08/14  12:44
+    // Header 10byte, data.  2024/08/14  12:44
     //                          Header                             | Data                      |
     //  1  |  2  |  3  |  4  |  5  |  6    |  7  |  8  |  9  |  10 |  1  |  2  |  -  |  Length |
     // SOH | Length    | CMD       |ACK/NCK| Dir | COM | ENQ | STX | ... | ... | ... | NUL     |
@@ -98,7 +97,7 @@ namespace KEOC_ImageGrabber
         public void SendDummy()
         {
             byte[] msg = new byte[11];
-            //! length는 null을 뺀 크기.  Taeroo-kgseon - 2024/08/26  14:13
+            //! length는 null을 뺀 크기.  2024/08/26  14:13
             //var length = BitConverter.GetBytes(0);
             //var cmd = BitConverter.GetBytes((ushort)COMM_PROTOCALL.END); // CMD STATUS로 변경.
             msg[0] = (byte)COMM_PROTOCALL.SOH;
