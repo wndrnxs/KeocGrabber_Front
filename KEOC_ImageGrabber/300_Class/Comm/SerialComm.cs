@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -38,6 +39,9 @@ namespace KEOC_ImageGrabber
         private bool bWork = false;
         private Queue<byte[]> m_queCMD = new Queue<byte[]> ();
         private Mutex m_mutex = new Mutex();
+
+        // 포트 종료 시 송신 큐 flush 최대 대기 시간. [ms]
+        private const int FLUSH_TIMEOUT = 1000;
 
         private Thread m_thread = null;
 
@@ -256,6 +260,11 @@ namespace KEOC_ImageGrabber
         {
             bool bRet = false;
 
+            //! 포트를 닫기 전 송신 큐를 비움.  Taeroo - 2026/08/11
+            //  - WriteValue()는 큐 적재만 하고 실제 전송은 THREAD_SENDDATA가 담당하므로,
+            //    종료 직전에 넣은 명령(조명 OFF 등)이 전송되기 전에 폐기될 수 있음.
+            fn_FlushSendQueue(FLUSH_TIMEOUT);
+
             if (m_sPort != null)
             {
                 if (m_sPort.IsOpen)
@@ -267,6 +276,27 @@ namespace KEOC_ImageGrabber
             bWork = false;
             m_thread?.Abort();
             return bRet;
+        }
+
+        /// <summary>
+        /// 송신 대기 중인 명령이 모두 전송될 때까지 대기.
+        /// </summary>
+        /// <param name="nTimeout">최대 대기 시간 [ms]</param>
+        private void fn_FlushSendQueue(int nTimeout)
+        {
+            if (m_thread == null || !bWork)
+                return;
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            while (m_queCMD.Count > 0 && sw.ElapsedMilliseconds < nTimeout)
+            {
+                Thread.Sleep(10);
+            }
+
+            // 마지막 명령의 실제 Write 완료까지 대기.(THREAD_SENDDATA가 mutex 보유 중)
+            if (m_mutex.WaitOne(nTimeout))
+                m_mutex.ReleaseMutex();
         }
 
         private void PortClose()

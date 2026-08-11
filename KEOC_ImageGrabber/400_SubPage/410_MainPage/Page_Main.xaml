@@ -65,6 +65,7 @@
         <Grid Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="{Binding TestBtnHeight}"/>
+                <RowDefinition Height="{Binding TestMsgBtnHeight}"/>
                 <RowDefinition Height="60"/>
                 <RowDefinition Height="60"/>
                 <RowDefinition Height="60"/>
@@ -80,15 +81,19 @@
                 </UniformGrid>
                 -->
             </Grid>
+            <!-- 큐 적체 테스트용 가상 요청 주입. Operator 권한일 때만 표시. -->
             <Grid Grid.Row="1">
-                <Frame Grid.Row="1" NavigationUIVisibility="Hidden" Content="{Binding PageProcess}"/>
+                <uc:UserButton Content="Test Push Request" Click="bn_TestPushRequest_Click" CornerRadius="3" Margin="3"/>
             </Grid>
             <Grid Grid.Row="2">
+                <Frame NavigationUIVisibility="Hidden" Content="{Binding PageProcess}"/>
+            </Grid>
+            <Grid Grid.Row="3">
                 <GroupBox Header="CellID">
                     <TextBlock Text="{Binding CellID}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </GroupBox>
             </Grid>
-            <Grid Grid.Row="3">
+            <Grid Grid.Row="4">
                 <GroupBox Header="GrabState" MouseDoubleClick="GrabState1_MouseDoubleClick">
                     <UniformGrid Rows="1">
                             <Border>
@@ -160,7 +165,7 @@
                     </UniformGrid>
                 </GroupBox>
             </Grid>
-            <Grid Grid.Row="4">
+            <Grid Grid.Row="5">
                 <GroupBox Header="Log">
                     <ListBox Name="listLog"/>
                 </GroupBox>

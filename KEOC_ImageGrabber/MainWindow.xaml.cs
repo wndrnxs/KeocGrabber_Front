@@ -64,8 +64,11 @@ namespace KEOC_ImageGrabber
 
 #if DEBUG
             G.USERLEVEL = EN_AUTHORITY.EN_ENGINEER;
-            mc_pageMain.fn_ViewTestArea();
 #endif
+            //! 시작 시점의 권한으로 테스트 영역 표시 상태를 초기화.  Taeroo - 2026/08/11
+            //  - 기존에는 DEBUG 빌드에서만 호출되어, Release에서는 초기 권한(Operator)에
+            //    해당하는 버튼이 권한을 한 번 변경하기 전까지 표시되지 않았음.
+            mc_pageMain.fn_ViewTestArea();
             // Title에 버전 표시.
             this.Title += $" [{G.fn_GetVer()}]";
 

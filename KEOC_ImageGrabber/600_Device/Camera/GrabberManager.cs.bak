@@ -1,0 +1,334 @@
+﻿/*
+ *******************************************************************************
+ * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
+ * - 주식회사 태루 -
+ *******************************************************************************
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using Matrox.MatroxImagingLibrary;
+using OpenCvSharp;
+
+namespace KEOC_ImageGrabber
+{
+
+    internal class GrabberManager
+    {
+        MIL_APP_HOOK_FUNCTION_PTR UserHookFunctionDelegate = null;
+        List<MatroxGrabber> m_listGrabber = new List<MatroxGrabber>();
+        MIL_ID m_MilApplication = MIL.M_NULL;
+        MIL_ID m_MilSystem = MIL.M_NULL;
+        GCHandle hUserData;
+        int m_nBoardCount = 0;
+        //int m_nCamcountperboard = 0;
+
+        public int ImageWidth { get { return m_listGrabber.Count > 0 ? m_listGrabber[0].Width : 0; } }
+        public int ImageHeight { get { return m_listGrabber.Count > 0 ? m_listGrabber[0].Height : 0; } }
+        public int ImageChannel { get { return m_listGrabber.Count > 0 ? m_listGrabber[0].Channel : 0; } }
+
+        bool m_bGrabSetup = false;
+
+        bool m_bIsInit = false;
+        public bool IsInited { get { return m_bIsInit; } }
+
+        public bool IsGrabbing 
+        { 
+            get 
+            {
+                bool bRet = true;
+                if (m_listGrabber.Count == 0) bRet = false;
+                for (int i = 0; i < m_listGrabber.Count; i++)
+                {
+                    bRet &= m_listGrabber[i].IsGrabbing;
+                }
+
+                return bRet;
+            } 
+        }
+
+        Thread thread = null;
+
+        int[] m_nBufferCounter = new int[Define.CAM_COUNT];
+
+        public void fn_Init(int boardcount, IList<string> dcflist)
+        {
+            MILBOARD_TYPE type = MILBOARD_TYPE.EN_BT_RADIENTEVCL;
+            //MIL_ID systemid = MIL.M_NULL;
+            try
+            {
+                fn_InitMILApplication();
+                fn_MILErrorMsgCallback();
+
+                if (boardcount == dcflist.Count)
+                {
+                    m_listGrabber.Clear();
+                    m_nBoardCount = boardcount;
+                    //m_nCamcountperboard = camcountperboard;
+
+                    //m_listGrabber.Add(new MatroxGrabber());
+                    //m_listGrabber[m_listGrabber.Count - 1].fn_Init(type, 0, 0, dcflist[0], MIL.M_NULL);
+                    //m_MilSystem = m_listGrabber[m_listGrabber.Count - 1].SystemID;
+
+                    for (int i = 0; i < boardcount; i++)
+                    {
+                        m_listGrabber.Add(new MatroxGrabber());
+                        if (dcflist[i] != "")
+                        {
+                            m_listGrabber[m_listGrabber.Count - 1].fn_Init(type, i, 0, dcflist[i], m_MilSystem);
+                            
+                            // Log Callback
+                            m_listGrabber[i].OnLog = fn_LogWrite;
+                        }
+                    }
+                    // Grab Callback
+                    m_listGrabber[0].OnGrab = OnGrabedCam1;
+                    //m_listGrabber[1].OnGrab = OnGrabedCam2;
+                    //m_listGrabber[2].OnGrab = OnGrabedCam3;
+                    //m_listGrabber[3].OnGrab = OnGrabedCam4;
+                    m_listGrabber[m_listGrabber.Count - 1].IsCanSystemFree = true;
+
+                    G.WriteLog($"Grabber Init Succ.");
+                }
+
+                //m_bIsInit = m_listGrabber[0].IsInit &&
+                //    m_listGrabber[1].IsInit &&
+                //    m_listGrabber[2].IsInit &&
+                //    m_listGrabber[3].IsInit;
+                m_bIsInit = m_listGrabber[0].IsInit;
+            }
+            catch (Exception ex)
+            {
+                G.WriteLog($"Grabber Init Fail. : {ex.Message}", true);
+            }
+        }
+
+        private bool fn_LogWrite(string strMsg)
+        {
+            G.WriteLog(strMsg);
+            return false;
+        }
+
+        public void fn_Final()
+        {
+            try
+            {
+                for (int i = 0; i < m_listGrabber.Count; i++)
+                {
+                    m_listGrabber[i].fn_Final();
+                }
+                fn_FinalMILApplication();
+
+                m_listGrabber.Clear();
+                G.WriteLog($"Grabber Final Succ.");
+
+                m_bIsInit = false;
+            }
+            catch (Exception ex)
+            {
+                G.WriteLog($"Grabber Final Fail. : {ex.Message}", true);
+            }
+            UserHookFunctionDelegate = null;
+        }
+
+        private void fn_InitMILApplication()
+        {
+            hUserData = GCHandle.Alloc(this);
+            MIL.MappAlloc(MIL.M_DEFAULT, ref m_MilApplication);
+        }
+
+        private void fn_FinalMILApplication()
+        {
+            MIL.MappFree(m_MilApplication);
+
+            m_MilApplication = MIL.M_NULL;
+            hUserData.Free();
+        }
+
+        private void fn_MILErrorMsgCallback()
+        {
+            UserHookFunctionDelegate = new MIL_APP_HOOK_FUNCTION_PTR(ErrorMessageCallBack);
+            MIL.MappControl(m_MilApplication, MIL.M_ERROR, MIL.M_PRINT_DISABLE);
+
+            MIL.MappHookFunction(m_MilApplication, MIL.M_ERROR_CURRENT, UserHookFunctionDelegate, GCHandle.ToIntPtr(hUserData));
+            
+        }
+
+        static private MIL_INT ErrorMessageCallBack(MIL_INT HookType, MIL_ID HookId, IntPtr HookDataPtr)
+        {
+            GrabberManager pMain = GCHandle.FromIntPtr(HookDataPtr).Target as GrabberManager;
+
+            StringBuilder MilError = new StringBuilder();
+            StringBuilder MilErrorFCT = new StringBuilder();
+            StringBuilder MilError_sub1 = new StringBuilder();
+            StringBuilder MilError_sub2 = new StringBuilder();
+            StringBuilder MilError_sub3 = new StringBuilder();
+
+            MIL_INT nsuberrmsg = 0;
+
+            MIL.MappGetHookInfo(MIL.M_DEFAULT, HookId, MIL.M_MESSAGE + MIL.M_CURRENT_FCT, MilErrorFCT);
+            MIL.MappGetHookInfo(MIL.M_DEFAULT, HookId, MIL.M_MESSAGE + MIL.M_CURRENT, MilError);
+            MIL.MappGetHookInfo(MIL.M_DEFAULT, HookId, MIL.M_CURRENT_SUB_NB, ref nsuberrmsg);
+
+            MIL.MappGetHookInfo(MIL.M_DEFAULT, HookId, MIL.M_CURRENT_SUB_1 + MIL.M_MESSAGE, MilError_sub1);
+            MIL.MappGetHookInfo(MIL.M_DEFAULT, HookId, MIL.M_CURRENT_SUB_2 + MIL.M_MESSAGE, MilError_sub2);
+            MIL.MappGetHookInfo(MIL.M_DEFAULT, HookId, MIL.M_CURRENT_SUB_3 + MIL.M_MESSAGE, MilError_sub3);
+
+            switch (nsuberrmsg)
+            {
+                case 0:
+                    G.WriteLog($"[MIL_ERROR] {MilErrorFCT} {MilError}", true);
+                    break;
+                case 1:
+                    G.WriteLog($"[MIL_ERROR] {MilErrorFCT} {MilError} {MilError_sub1}", true);
+                    break;
+                case 2:
+                    G.WriteLog($"[MIL_ERROR] {MilErrorFCT} {MilError} {MilError_sub1} {MilError_sub2}", true);
+                    break;
+                case 3:
+                    G.WriteLog($"[MIL_ERROR] {MilErrorFCT} {MilError} {MilError_sub1} {MilError_sub2} {MilError_sub3}", true);
+                    break;
+            }
+
+            return 0;
+        }
+
+        bool OnGrabedCam1(Mat matImg)
+        {
+            const int idx = 0;
+            fn_OnGrab(idx, matImg);
+            return false;
+        }
+        bool OnGrabedCam2(Mat matImg)
+        {
+            const int idx = 1;
+            fn_OnGrab(idx, matImg);
+            return false;
+        }
+        bool OnGrabedCam3(Mat matImg)
+        {
+            const int idx = 2;
+            fn_OnGrab(idx, matImg);
+            return false;
+        }
+        bool OnGrabedCam4(Mat matImg)
+        {
+            const int idx = 3;
+            fn_OnGrab(idx, matImg);
+            return false;
+        }
+
+        void fn_OnGrab(int idx, Mat matImg)
+        {
+            if (m_bGrabSetup)
+            {
+                G.MAIN.Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(delegate ()
+                {
+                    if (G.MAIN.SetupCamIndex == idx)
+                    {
+                        G.MAIN.SetupView.SetImage(OpenCvSharp.WpfExtensions.WriteableBitmapConverter.ToWriteableBitmap(matImg));
+                    }
+                }));
+            }
+            else
+            {
+                m_nBufferCounter[idx]++;
+                if (!(G.IMAGEMANAGER?.IsImageCompalte[idx] == true))
+                {
+                    G.IMAGEMANAGER?.AttachImage(idx, matImg);
+                }
+            }
+        }
+
+        public bool fn_IsGrabbing(int idx)
+        {
+            if (idx >= 0 && idx < m_listGrabber.Count)
+                return m_listGrabber[idx].IsGrabbing;
+            else
+                return false;
+        }
+
+        public void fn_GrabStart()
+        {
+            m_bGrabSetup = false;
+            for (int i = 0; i < m_nBoardCount; i++)
+            {
+                m_nBufferCounter[i] = 0;
+                m_listGrabber[i].fn_GrabStart();
+            }
+        }
+
+        public void fn_GrabStop()
+        {
+            for (int i = 0; i < m_nBoardCount; i++)
+            {
+                m_listGrabber[i].fn_GrabStop();
+            }
+        }
+
+        public void fn_GrabStart(int idx, bool bSetup = false)
+        {
+            if (idx >= 0 && idx < Define.CAM_COUNT)
+            {
+                m_bGrabSetup = bSetup;
+                m_nBufferCounter[idx] = 0;
+                m_listGrabber[idx].fn_GrabStart(bSetup);
+            }
+        }
+
+        public void fn_GrabStop(int idx)
+        {
+            if (idx >= 0 && idx < Define.CAM_COUNT)
+            {
+                m_bGrabSetup = false;
+                m_listGrabber[idx].fn_GrabStop();
+            }
+        }
+
+        private void fn_StartThread()
+        {
+            thread = new Thread(new ThreadStart(THREAD_IOCHECK));
+            thread.Start();
+        }
+
+        private void fn_StopThread()
+        {
+            if (thread.IsAlive)
+            {
+                thread.Abort();
+                thread = null;
+            }
+        }
+
+        private void THREAD_IOCHECK()
+        {
+            bool bPrevIO = false;
+            bool bCurrIO = false;
+            int nPrevIO = 0;
+            int nCurrIO = 0;
+            while(true)
+            {
+                bCurrIO = m_listGrabber[0].fn_GetIOValue();
+
+                nCurrIO = bCurrIO ? 1 : 0;
+
+                if (nCurrIO - nPrevIO > 0)
+                {
+                    // Rising Edge.
+                    // IO On.
+                    //G.IMAGEMANAGER.InitAttachCount();
+                }
+
+                bPrevIO = bCurrIO;
+                nPrevIO = nCurrIO;
+
+            }
+        }
+    }
+}

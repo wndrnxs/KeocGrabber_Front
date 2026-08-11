@@ -1,0 +1,436 @@
+﻿/*
+ *******************************************************************************
+ * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
+ * - 주식회사 태루 -
+ *******************************************************************************
+ */
+using OpenCvSharp;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace KEOC_ImageGrabber
+{
+    /// <summary>
+    /// 디스크 파일 관리.
+    /// 1. 디스크 경로 설정
+    /// 2. 대상 확장자 설정.
+    /// 2. 데이터 유지 기간 설정
+    /// 3. 감시 시작
+    /// 
+    /// 파일 목록 갱신. (파일 생성되면 추가.)
+    /// 
+    /// </summary>
+    class DiskManager
+    {
+        string m_strDstImgPath = "./";
+        string m_strDstLogPath = "./";
+        string m_strDstSharedPath = "./";
+        string m_strDstImgExt = "bmp";
+        string m_strDstLogExt = "csv";
+
+        Thread m_threadChk = null;
+        bool m_bWorkingChk = false;
+        int m_nIntervalChk = 0;
+
+        Thread m_threadDel = null;
+        bool m_bWorkingDel = false;
+        int m_nIntervalDel = 0;
+
+        Mutex m_mutexImg = new Mutex();
+        Mutex m_mutexLog = new Mutex();
+
+        List<FileInfo> m_listImg = new List<FileInfo>();
+        List<FileInfo> m_listLog = new List<FileInfo>();
+
+        Mutex m_mutexDel = new Mutex();
+        Queue<FileInfo> m_queDelImg = new Queue<FileInfo>();
+
+        FileSystemWatcher m_FolderImgWatcher;
+        FileSystemWatcher m_FolderLogWatcher;
+
+        int m_nMaintenanceDays = 30;
+
+        public string DstSharedPath { get { return m_strDstSharedPath; } set { m_strDstSharedPath = value; } }
+        public string DstImgPath { get { return m_strDstImgPath; } set { m_strDstImgPath = value; } }
+        public string DstLogPath { get { return m_strDstLogPath; } set { m_strDstLogPath = value; } }
+        public string DstImgExt { get { return m_strDstImgExt; } set { m_strDstImgExt = value; } }
+        public string DstLogExt { get { return m_strDstLogExt; } set { m_strDstLogExt = value; } }
+
+        public int MaintenaceDay { get { return m_nMaintenanceDays; } set { m_nMaintenanceDays = value; } }
+
+        Thread m_threadImageSave = null;
+        bool m_bWorking = false;
+        Mutex m_mutexImgSave = new Mutex();
+        Queue<Tuple<string, Mat>> m_queImg = new Queue<Tuple<string, Mat>>();
+
+        double m_dDeleteThreshold = 0.01;
+        double m_dSwitchThreshold = 0.9;
+
+
+        public void fn_StartThread()
+        {
+
+            m_threadImageSave = new Thread(new ThreadStart(THREAD_IMAGESAVE));
+            m_bWorking = true;
+            m_threadImageSave.Start();
+
+
+            m_listImg.Clear();
+            m_listLog.Clear();
+
+            fn_GetFileList();
+            m_nIntervalChk = 1 * 60 * 1000; // 1분에 한번. (1 [m] * 60 [s] * 1000 [ms])
+            m_bWorkingChk = true;
+            m_threadChk = new Thread(new ThreadStart(THREAD_CHECKFILE));
+            m_threadChk.Start();
+
+            m_nIntervalDel = 1000;
+            m_bWorkingDel = true;
+            m_threadDel = new Thread(new ThreadStart(THREAD_DELETEFILE));
+            m_threadDel.Start();
+
+            fn_RunWatcher();
+        }
+
+        public void fn_StopThread()
+        {
+            m_bWorking = false;
+            if (m_threadImageSave.IsAlive)
+            {
+                m_threadImageSave.Abort();
+            }
+
+            fn_StopWatcher();
+
+            m_bWorkingDel = false;
+            if (m_threadDel != null && m_threadDel.IsAlive)
+            {
+                m_threadDel.Abort();
+                m_threadDel = null;
+            }
+
+            m_bWorkingChk = false;
+            if (m_threadChk != null && m_threadChk.IsAlive)
+            {
+                m_threadChk.Abort();
+                m_threadChk = null;
+            }
+        }
+
+        private void fn_EnqueDelFile(FileInfo file)
+        {
+            m_mutexDel.WaitOne();
+            m_queDelImg.Enqueue(file);
+            m_mutexDel.ReleaseMutex();
+        }
+
+        private FileInfo fn_DequeDelFile()
+        {
+            FileInfo info = null;
+            if (m_queDelImg.Count > 0)
+            {
+                if (m_mutexDel.WaitOne(3000))
+                {
+                    info = m_queDelImg.Dequeue();
+                    m_mutexDel.ReleaseMutex();
+                }
+            }
+            return info;
+        }
+
+        private void fn_GetFileList()
+        {
+            try
+            {
+                if (Directory.Exists(m_strDstImgPath))
+                {
+                    var strImgFiles = Directory.GetFiles(m_strDstImgPath, $"*.{m_strDstImgExt}");
+                    var strLogFiles = Directory.GetFiles(m_strDstLogPath, $"*.{m_strDstLogExt}");
+
+                    m_listImg.Clear();
+                    foreach (var files in strImgFiles)
+                    {
+                        m_listImg.Add(new FileInfo(files));
+                    }
+
+                    m_listLog.Clear();
+                    foreach (var files in strLogFiles)
+                    {
+                        m_listLog.Add(new FileInfo(files));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                G.WriteLog(ex.Message, true);
+            }
+        }
+
+        private void fn_RunWatcher()
+        {
+            try
+            {
+                string strDstImgPath = $"{m_strDstImgPath}{DateTime.Now:yyyy}/";
+                strDstImgPath = strDstImgPath.Replace('/', '\\');
+                strDstImgPath = strDstImgPath.Replace(".\\", "\\");
+
+                //if (m_strDstImgPath.IndexOf(".\\") == 0)
+                //{
+                //    m_strDstImgPath = m_strDstImgPath.Replace(".\\", $"{Directory.GetCurrentDirectory()}\\");
+                //}
+                m_FolderImgWatcher = new FileSystemWatcher();
+                m_FolderImgWatcher.Filter = $"*.{m_strDstImgExt}";
+                m_FolderImgWatcher.Path = strDstImgPath;
+                m_FolderImgWatcher.IncludeSubdirectories = true;
+                m_FolderImgWatcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName;
+                m_FolderImgWatcher.Created += new FileSystemEventHandler(ImgWatcher_OnChanged);
+                m_FolderImgWatcher.EnableRaisingEvents = true;
+            }
+            catch (Exception ex)
+            {
+                G.WriteLog(ex.Message, true);
+            }
+            try
+            {
+                m_FolderLogWatcher = new FileSystemWatcher();
+                m_FolderLogWatcher.Filter = $"*.{m_strDstLogExt}";
+                m_FolderLogWatcher.Path = m_strDstLogPath;
+                m_FolderLogWatcher.IncludeSubdirectories = true;
+                m_FolderLogWatcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName;
+                m_FolderLogWatcher.Created += new FileSystemEventHandler(LogWatcher_OnChanged);
+                m_FolderLogWatcher.EnableRaisingEvents = true;
+            }
+            catch (Exception ex)
+            {
+                G.WriteLog(ex.Message, true);
+            }
+
+        }
+
+        private void fn_StopWatcher()
+        {
+            if (m_FolderImgWatcher != null)
+                m_FolderImgWatcher.EnableRaisingEvents = false;
+
+            if (m_FolderLogWatcher != null)
+                m_FolderLogWatcher.EnableRaisingEvents = false;
+        }
+
+        private void ImgWatcher_OnChanged(object sender, FileSystemEventArgs e)
+        {
+            m_mutexImg.WaitOne();
+            m_listImg.Add(new FileInfo(e.FullPath));
+            m_mutexImg.ReleaseMutex();
+        }
+
+        private void LogWatcher_OnChanged(object sender, FileSystemEventArgs e)
+        {
+            m_mutexLog.WaitOne();
+            m_listLog.Add(new FileInfo(e.FullPath));
+            m_mutexLog.ReleaseMutex();
+        }
+
+        public void THREAD_CHECKFILE()
+        {
+            DateTime now;
+            double dTotalLengthGB = 0;
+
+            string strDriveLetter = m_strDstImgPath.Substring(0, m_strDstLogPath.IndexOf(':'));
+            double dDriveUsage = 0;
+            double dTotalDriveSize = 0;
+
+            while (m_bWorkingChk)
+            {
+                now = DateTime.Now;
+                Thread.Sleep(m_nIntervalChk);
+
+                // 용량 업데이트.
+                var list = DriveInfo.GetDrives();
+
+                foreach (var drive in list)
+                {
+                    if (drive.Name.Contains(strDriveLetter))
+                    {
+                        dDriveUsage = ((drive.TotalSize - drive.TotalFreeSpace) / (double)drive.TotalSize);
+                        dTotalDriveSize = (drive.TotalSize / 1024.0 / 1024.0 / 1024.0);
+                        break;
+                    }
+                }
+
+                // 저장 드라이브 + 삭제 드라이브 용량이 90퍼센트가 넘는다면
+                if (dDriveUsage > m_dSwitchThreshold)
+                {
+                    // 삭제대기 큐에 넣은 용량 확인.
+                    dTotalLengthGB = 0;
+                    foreach (var img in m_listImg)
+                    {
+                        // img 경로가 해당 문자를 포함 하고 있다면.
+                        if (img.FullName.Contains(strDriveLetter))
+                        {
+                            // 삭제대기 큐에 넣은 이미지 용량 누적.
+                            dTotalLengthGB += (img.Length / 1024.0 / 1024.0 / 1024.0); // byte -> GB 변환.
+                            if (m_mutexImg.WaitOne(3000))
+                            {
+                                fn_EnqueDelFile(img);
+                                m_listImg.Remove(img);
+                                m_mutexImg.ReleaseMutex();
+                            }
+
+                            // 전체 용량의 1퍼센트까지만 삭제대기에 추가.
+                            if (dTotalLengthGB > m_dDeleteThreshold * dTotalDriveSize)
+                            {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                foreach (var log in m_listLog)
+                {
+                    if ((now - log.CreationTime).Days >= m_nMaintenanceDays)
+                    {
+                        if (m_mutexLog.WaitOne(3000))
+                        {
+                            fn_EnqueDelFile(log);
+                            m_listLog.Remove(log);
+                            m_mutexLog.ReleaseMutex();
+                        }
+                    }
+                }
+            }
+        }
+
+        public void THREAD_DELETEFILE()
+        {
+            FileInfo info = null;
+            while (m_bWorkingDel)
+            {
+                info = fn_DequeDelFile();
+                if (info != null)
+                {
+                    // 파일 삭제.
+                    info.Delete();
+
+                    // Directory가 비었으면 삭제 시도.
+                    if (Directory.GetFiles(info.Directory.FullName).Length > 0)
+                    {
+                        info.Directory.Delete(false);
+                    }
+                }
+                else
+                {
+                    Thread.Sleep(m_nIntervalDel);
+                }
+            }
+        }
+
+
+        public void SaveImage(Tuple<string, Mat> imgdata)
+        {
+            try
+            {
+                Stopwatch sw = new Stopwatch();
+                DateTime now = DateTime.Now;
+                // Create Directory.
+                string strSavePath = $"{m_strDstImgPath}/{now:yyyy}/{now:MM}/{now:dd}/{imgdata.Item1}/";
+                string strSharedPath = $"{m_strDstSharedPath}/"; // 공유 폴더 저장용 경로.
+                Directory.CreateDirectory(strSavePath);
+
+                string strImgName = $"{imgdata.Item1}";
+                string strImageFileName = $"{strSavePath}{strImgName}.{m_strDstImgExt}";
+                string strSharedFileName = $"{strSharedPath}{strImgName}.{m_strDstImgExt}";
+
+                // 중복 파일명 처리.
+                int idx = 1;
+                while (File.Exists(strImageFileName))
+                {
+                    strImageFileName = $"{strSavePath}{strImgName}_{idx}.{m_strDstImgExt}";
+                    idx++;
+                }
+
+                // 파일저장
+                //imgdata.Item2.ImWrite(strImageFileName);
+                sw.Restart();
+                Cv2.ImWrite(strImageFileName, imgdata.Item2);
+                sw.Stop();
+                G.WriteLog($"이미지 저장 완료. [{sw.ElapsedMilliseconds} ms] ({strImageFileName})");
+
+                // Save Shared Folder
+                try
+                {
+                    sw.Restart();
+                    File.Copy(strImageFileName, strSharedFileName, true );
+                    //Cv2.ImWrite(strSharedFileName, imgdata.Item2);
+                    sw.Stop();
+                    G.WriteLog($"공유 폴더 저장 완료. [{sw.ElapsedMilliseconds} ms] ({strSharedFileName})");
+                }
+                catch(Exception e) 
+                {
+                    G.WriteLog($"공유 폴더 저장 오류 ({e.Message})");
+                }
+            }
+            catch (Exception ex)
+            {
+                G.WriteLog(ex.Message, true);
+            }
+        }
+
+        public void PushSaveImage(string cellid, Mat img)
+        {
+            m_mutexImgSave.WaitOne();
+            m_queImg.Enqueue(new Tuple<string, Mat>(cellid, img));
+            m_mutexImgSave.ReleaseMutex();
+
+            //             m_mutexTransfer.WaitOne();
+            //             m_listImg.Add(new Tuple<int, Mat, string>(index, img, lotid));
+            //             m_mutexTransfer.ReleaseMutex();
+
+            G.WriteLog($"{cellid} Image Push.");
+        }
+
+
+        private Tuple<string, Mat> PopImage()
+        {
+            Tuple<string, Mat> data = null;
+
+            if (m_queImg.Count > 0)
+            {
+                if (m_mutexImgSave.WaitOne(3000))
+                {
+                    data = m_queImg.Dequeue();
+                    m_mutexImgSave.ReleaseMutex();
+                    G.WriteLog($"{data.Item1} Image Pop.");
+                }
+                else
+                {
+                    G.WriteLog($"Time-Out Image Pop.");
+                }
+            }
+
+            return data;
+        }
+
+        private void THREAD_IMAGESAVE()
+        {
+            Tuple<string, Mat> data = null;
+            while (m_bWorking)
+            {
+                data = PopImage();
+                if (data != null)
+                {
+                    SaveImage(data);
+                }
+                else
+                {
+                    Thread.Sleep(500);
+                }
+            }
+        }
+    }
+}

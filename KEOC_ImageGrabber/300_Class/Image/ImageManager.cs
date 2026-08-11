@@ -28,6 +28,9 @@ namespace KEOC_ImageGrabber
 
         bool[] m_bIsImageComplate;
 
+        // 무효 그랩의 프레임 폐기 로그를 회차당 1회만 남기기 위한 플래그.
+        bool[] m_bIsDiscardLogged;
+
         int m_nGrabWidth = 0;
         int m_nGrabHeight = 0;
         int m_nGrabChannel = 0;
@@ -65,6 +68,7 @@ namespace KEOC_ImageGrabber
 
             m_nAttachCount = new int[m_nCamCount];
             m_bIsImageComplate = new bool[m_nCamCount];
+            m_bIsDiscardLogged = new bool[m_nCamCount];
 
             if (m_nGrabChannel != 1 && m_nGrabChannel != 3)
             {
@@ -123,6 +127,9 @@ namespace KEOC_ImageGrabber
         {
             if (m_nAttachCount != null)
                 m_nAttachCount[idx] = 0;
+
+            if (m_bIsDiscardLogged != null)
+                m_bIsDiscardLogged[idx] = false;
         }
 
         public void InitComplFlag(int idx)
@@ -131,6 +138,21 @@ namespace KEOC_ImageGrabber
         }
         public void AttachImage(int idx, Mat img)
         {
+            //! 타임아웃으로 무효화된 그랩의 지각 프레임은 폐기.  Taeroo - 2026/08/11
+            //  - 조명이 꺼진 뒤 스캔된 라인이 붙어 이미지가 '완료'로 처리되면,
+            //    하단이 어두운 불량 이미지가 정상 결과로 저장/전송되기 때문.
+            //  - 로그와 조명 OFF는 회차당 1회만 수행.
+            if (G.IsGrabInvalid)
+            {
+                if (!m_bIsDiscardLogged[idx])
+                {
+                    m_bIsDiscardLogged[idx] = true;
+                    G.WriteLog($"Grab Timeout 이후 도착한 프레임 폐기. 이미지 무효 처리. [idx : {idx}]", true);
+                    G.LIGHT.fn_LightOffAll();
+                }
+                return;
+            }
+
             try
             {
                 Stopwatch sw = new Stopwatch();
@@ -164,6 +186,12 @@ namespace KEOC_ImageGrabber
                 // Grab 완료.
                 if (m_nGrabHeight <= grabEndY)
                 {
+                    //! 조명 OFF를 그랩 종료 처리보다 먼저 수행.  Taeroo - 2026/07/27
+                    //  - ComplateImage() 내부의 MIL Grab Stop에서 예외가 발생하면 조명이 켜진 채로 남고,
+                    //    이미 GRABSTATE가 End로 바뀌어 G.GrabStop()의 조명 OFF도 동작하지 않기 때문.
+                    G.fn_StopGrabTimer();
+                    G.LIGHT.fn_LightOffAll();
+
                     ComplateImage(idx);
                 }
                 //~dcf에서 일정 크기 만큼 그랩 할 때.
@@ -180,11 +208,10 @@ namespace KEOC_ImageGrabber
 
             G.WriteLog($"{index} Grab Complate.");
 
-            G.GRABBER.fn_GrabStop(index);
-            
             if (G.GRABBER.IsGrabbing)
                 G.GRABSTATE = EN_GRABSTATE.End;
 
+            G.GRABBER.fn_GrabStop(index);
         }
 
     }

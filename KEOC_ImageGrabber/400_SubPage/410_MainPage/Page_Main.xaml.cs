@@ -41,6 +41,11 @@ namespace KEOC_ImageGrabber
         double dTestBtnHeight = 0;
         public double TestBtnHeight { get { return dTestBtnHeight; } set { dTestBtnHeight = value; OnPropertyChanged(); } }
 
+        //! 가상 요청 주입 버튼 표시 높이.  Taeroo - 2026/08/11
+        //  - 큐 적체/자동 폐기 확인용. Operator 권한일 때만 노출.
+        double dTestMsgBtnHeight = 0;
+        public double TestMsgBtnHeight { get { return dTestMsgBtnHeight; } set { dTestMsgBtnHeight = value; OnPropertyChanged(); } }
+
         bool bIsGrabStop = true;
         public bool IsGrabStop { get { return bIsGrabStop; } set { bIsGrabStop = value; OnPropertyChanged(); } }
     }
@@ -58,6 +63,9 @@ namespace KEOC_ImageGrabber
         public void fn_ViewTestArea()
         {
             datacontext.TestBtnHeight = G.USERLEVEL == EN_AUTHORITY.EN_ENGINEER ? 20 : 0;
+
+            //! 가상 요청 주입 버튼은 Operator 권한일 때만 노출.  Taeroo - 2026/08/11
+            datacontext.TestMsgBtnHeight = G.USERLEVEL == EN_AUTHORITY.EN_OPERATOR ? 30 : 0;
         }
 
         public void fn_WriteLog(string strMsg, bool bError)
@@ -210,6 +218,25 @@ namespace KEOC_ImageGrabber
         {
             datacontext.IsGrabStop = false;
             G.GrabStart();
+        }
+
+        //! 큐 적체 테스트용 가상 요청 주입.  Taeroo - 2026/08/11
+        //  - 실제 START 수신 경로(ProtocallManager.MessageAnalyzer)에서 큐 적재 부분만 재현.
+        //  - 그랩(G.GrabStart)과 상위 응답(SendAck)은 수행하지 않음.
+        //    그랩이 완료되면 요청이 소비되어 큐가 쌓이지 않고, 상위로 가짜 응답이 나가면 안 되기 때문.
+        //  - 적재된 요청은 SYSTEM.RequestTimeout 경과 후 자동 폐기되는지 확인하는 용도.
+        int m_nTestMsgCount = 0;
+
+        private void bn_TestPushRequest_Click(object sender, RoutedEventArgs e)
+        {
+            m_nTestMsgCount++;
+
+            string strCellID1 = $"TEST{m_nTestMsgCount:D3}_1";
+            string strCellID2 = $"TEST{m_nTestMsgCount:D3}_2";
+
+            G.MSGPROC.fn_PushRequest(strCellID1, strCellID2);
+
+            G.WriteLog($"[TEST] 가상 요청 적재. [{strCellID1} | {strCellID2}] 큐 : {G.MSGPROC.CellIDCount}");
         }
     }
 }

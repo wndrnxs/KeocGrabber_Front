@@ -15,12 +15,30 @@ using System.Threading.Tasks;
 
 namespace KEOC_ImageGrabber
 {
+    //! 이미지 요청 1건.  Taeroo - 2026/08/11
+    //  - 큐 적체 판단을 위해 수신 시각이 필요하여 Tuple에서 클래스로 변경.
+    class ImageRequest
+    {
+        public string CellID1 { get; private set; }
+        public string CellID2 { get; private set; }
+
+        /// <summary>요청 수신 시각.</summary>
+        public DateTime RecvTime { get; private set; }
+
+        public ImageRequest(string cellid1, string cellid2)
+        {
+            CellID1 = cellid1;
+            CellID2 = cellid2;
+            RecvTime = DateTime.Now;
+        }
+    }
+
     class MessageManager
     {
         //! GC 회피용 ROI 이미지 객체.  Taeroo-kgseon - 2024/08/27  15:40
         //  - fn_ProcRequest 동작에 지역 변수 였으나, GC 동작 예방을 위해 맴버변수로 변경.
         OpenCvSharp.Mat matROI1, matROI2;
-        List<Tuple<string, string>> m_listRequest = new List<Tuple<string, string>>();
+        List<ImageRequest> m_listRequest = new List<ImageRequest>();
         Mutex mutex = new Mutex();
         Thread thread = null;
         public string CellID
@@ -29,7 +47,7 @@ namespace KEOC_ImageGrabber
             {
                 if (m_listRequest.Count > 0)
                 {
-                    return $"{m_listRequest[0].Item1},{m_listRequest[0].Item2}";
+                    return $"{m_listRequest[0].CellID1},{m_listRequest[0].CellID2}";
                 }
                 else
                 {
@@ -69,17 +87,53 @@ namespace KEOC_ImageGrabber
         public void fn_PushRequest(string cellid1, string cellid2)
         {
             mutex.WaitOne();
-            m_listRequest.Add(new Tuple<string,string>(cellid1, cellid2));
+            m_listRequest.Add(new ImageRequest(cellid1, cellid2));
             mutex.ReleaseMutex();
+        }
+
+        //! 큐에 오래 잔류한 요청 폐기.  Taeroo - 2026/08/11
+        //  - 그랩 타임아웃 등으로 이미지가 완성되지 않으면 fn_PopRequest가 해당 요청을
+        //    큐 뒤로 계속 밀어내기만 하므로 영구히 잔류함.
+        //  - fn_PopRequest와 같은 스레드(THREAD_MESSAGE)에서만 호출하여 인덱스 경합을 피함.
+        /// <summary>
+        /// 수신 후 SYSTEM.RequestTimeout 이 경과한 요청을 큐에서 제거.
+        /// </summary>
+        private void fn_RemoveExpiredRequest()
+        {
+            if (G.SYSTEM.RequestTimeout <= 0 || m_listRequest.Count == 0)
+                return;
+
+            DateTime now = DateTime.Now;
+
+            if (!mutex.WaitOne(3000))
+                return;
+
+            try
+            {
+                for (int i = m_listRequest.Count - 1; i >= 0; i--)
+                {
+                    double dElapsed = (now - m_listRequest[i].RecvTime).TotalMilliseconds;
+                    if (dElapsed < G.SYSTEM.RequestTimeout)
+                        continue;
+
+                    G.WriteLog($"[ProcREQ] 요청 적체 {dElapsed / 1000:F1}초 경과. 폐기. " +
+                               $"[{m_listRequest[i].CellID1} | {m_listRequest[i].CellID2}]", true);
+                    m_listRequest.RemoveAt(i);
+                }
+            }
+            finally
+            {
+                mutex.ReleaseMutex();
+            }
         }
 
         /// <summary>
         /// Image가 Ready가 안되면 POP하지 않음.
         /// </summary>
         /// <returns>받은 요청.(CellID, ImageIndex, NodeID[].)</returns>
-        private Tuple<string, string> fn_PopRequest()
+        private ImageRequest fn_PopRequest()
         {
-            Tuple<string, string> request = null;
+            ImageRequest request = null;
 
             if (m_listRequest.Count > 0)
             {
@@ -125,10 +179,10 @@ namespace KEOC_ImageGrabber
         /// 만약 Recipe가 잘못 되었다면, 강제로 이미지 절반으로 잘라서 보냄.
         /// </summary>
         /// <param name="req">CellID1, CellID2</param>
-        private void fn_ProcRequest(Tuple<string, string> req)
+        private void fn_ProcRequest(ImageRequest req)
         {
-            string cellid1 = req.Item1;
-            string cellid2 = req.Item2;
+            string cellid1 = req.CellID1;
+            string cellid2 = req.CellID2;
 
             OpenCvSharp.Mat matImg = G.IMAGEMANAGER.CamImage[0];
             int orgwidth = matImg.Cols;
@@ -187,9 +241,12 @@ namespace KEOC_ImageGrabber
 
         private void THREAD_MESSAGE()
         {
-            Tuple<string, string> request = null;
+            ImageRequest request = null;
             while (true)
             {
+                // 오래 잔류한 요청 먼저 정리.
+                fn_RemoveExpiredRequest();
+
                 // 요청 들어온 인덱스 플래그(G.IMAGEMANAGER.IsComplate[idx])가 true이면 유효한 데이터 리턴.
                 // 아니라면 null데이터를 리턴하여 대기.
                 request = fn_PopRequest();

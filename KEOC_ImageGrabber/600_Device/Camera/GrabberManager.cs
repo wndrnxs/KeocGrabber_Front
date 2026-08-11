@@ -39,7 +39,7 @@ namespace KEOC_ImageGrabber
         public bool IsInited { get { return m_bIsInit; } }
 
         public bool IsGrabbing 
-        { 
+        {
             get 
             {
                 bool bRet = true;

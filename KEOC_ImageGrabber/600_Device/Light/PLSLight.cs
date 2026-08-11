@@ -163,7 +163,7 @@ namespace KEOC_ImageGrabber
             {
                 string strcmd = $"*O{ch:X2}1$";
 
-                serialComm?.WriteValue(Encoding.ASCII.GetBytes(strcmd), false, false);
+                if (!fn_SendCommand(strcmd, "Light ON")) return;
 
                 if (ch == 0) G.WriteLog($"PLS All ch Light ON");
                 else G.WriteLog($"PLS {ch} ch Light ON");
@@ -180,11 +180,30 @@ namespace KEOC_ImageGrabber
             {
                 string strcmd = $"*O{ch:X2}0$";
 
-                serialComm?.WriteValue(Encoding.ASCII.GetBytes(strcmd), false, false);
+                if (!fn_SendCommand(strcmd, "Light OFF")) return;
 
                 if (ch == 0) G.WriteLog($"PLS All ch Light OFF");
                 else G.WriteLog($"PLS {ch} ch Light OFF");
             }
+        }
+
+        //! 명령 전송 실패를 에러 로그로 남김.  Taeroo - 2026/08/11
+        //  - SerialComm.WriteValue()는 포트가 닫혀 있으면 예외 없이 false만 반환하므로,
+        //    조명 OFF 명령이 유실되어 조명이 켜진 채 남아도 로그에 흔적이 없었음.
+        /// <summary>
+        /// 조명 컨트롤러 명령 전송.
+        /// </summary>
+        /// <param name="strCmd">전송할 명령 문자열</param>
+        /// <param name="strDesc">실패 시 로그에 남길 명령 설명</param>
+        /// <returns>전송 큐 적재 성공 여부</returns>
+        private bool fn_SendCommand(string strCmd, string strDesc)
+        {
+            bool bRet = serialComm?.WriteValue(Encoding.ASCII.GetBytes(strCmd), false, false) == true;
+
+            if (!bRet)
+                G.WriteLog($"PLS {strDesc} 전송 실패. 조명 컨트롤러 통신 확인 필요. [{serialComm?.ConnPort}]", true);
+
+            return bRet;
         }
 
         /// <summary>

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(dotnet --version)",
+      "PowerShell(dotnet run --project \"C:\\\\Users\\\\CHOIJU~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-choijungkwon-source-Repos-FrontAngleView\\\\a2965f4c-d096-42d6-b715-6be537459af7\\\\scratchpad\\\\GrabLightSim\\\\GrabLightSim.csproj\" -v q --nologo)",
+      "PowerShell(dotnet run --project \"C:\\\\Users\\\\CHOIJU~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-choijungkwon-source-Repos-FrontAngleView\\\\a2965f4c-d096-42d6-b715-6be537459af7\\\\scratchpad\\\\GrabLightSim\\\\GrabLightSim.csproj\" -v q --nologo 2>&1)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Professional\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"c:\\\\Users\\\\choijungkwon\\\\source\\\\Repos\\\\FrontAngleView\\\\KEOC_ImageGrabber.sln\" -t:Build -p:Configuration=Debug -restore -v:minimal -nologo -clp:ErrorsOnly`;Summary)",
+      "PowerShell(\\(Get-Command nuget -ErrorAction SilentlyContinue\\).Source; Test-Path \"c:\\\\Users\\\\choijungkwon\\\\source\\\\Repos\\\\FrontAngleView\\\\packages\"; Get-Content \"c:\\\\Users\\\\choijungkwon\\\\source\\\\Repos\\\\FrontAngleView\\\\.gitignore\" | Select-String -Pattern \"packages\" | Select-Object -First 5)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Professional\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"c:\\\\Users\\\\choijungkwon\\\\source\\\\Repos\\\\FrontAngleView\\\\KEOC_ImageGrabber.sln\" -t:Restore -p:RestorePackagesConfig=true -v:minimal -nologo)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Professional\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"c:\\\\Users\\\\choijungkwon\\\\source\\\\Repos\\\\FrontAngleView\\\\KEOC_ImageGrabber.sln\" -t:Build -p:Configuration=Debug -v:minimal -nologo)"
+    ]
+  }
+}

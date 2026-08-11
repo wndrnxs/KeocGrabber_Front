@@ -1,0 +1,69 @@
+﻿/*
+ *******************************************************************************
+ * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
+ * - 주식회사 태루 -
+ *******************************************************************************
+ */
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace KEOC_ImageGrabber
+{
+    class SystemParam
+    {
+        // Comm
+        string masterIP = "127.0.0.1";
+        int masterPort = 20000;
+
+        // Log
+        bool callstack = false;
+
+        string sharedpath = "D:/";
+        string imagePath = "D:/";
+        string logPath = "D:/Angleview/";
+        string imageExt = "bmp";
+        string logExt = "csv";
+        int maintenanceDays = 30;
+
+        string savedrive = "d";
+
+        // Devices
+        string lightPortTop1 = "COM1";
+
+        string cameraPort1 = "COM9";
+
+        string camera1dcf = "cam1.dcf";
+
+        int grabHeight = 32768;
+
+        string strCurrRecipeName = "-";
+        public string CurrRecipeName { get { return strCurrRecipeName; } set { strCurrRecipeName = value; } }
+        string strCurrRecipePath = "-";
+        public string CurrRecipePath { get { return strCurrRecipePath; } set { strCurrRecipePath = value; } }
+
+        public string MasterIP { get { return masterIP; } set { masterIP = value; } }
+        public int MasterPort { get { return masterPort; } set { masterPort = value; } }
+
+        public bool CallStack { get { return callstack; } set { callstack = value; } }
+
+        public string SharedPath { get { return sharedpath; } set { sharedpath = value; } }
+        public string ImagePath { get { return imagePath; } set { imagePath = value; } }
+        public string LogPath { get { return logPath; } set { logPath = value; } }
+        public string ImageExt { get { return imageExt; } set { imageExt = value; } }
+        public string LogExt { get { return logExt; } set { logExt = value; } }
+        public int MaintenanceDays { get { return maintenanceDays; } set { maintenanceDays = value; } }
+
+        public string LightPort { get { return lightPortTop1; } set { lightPortTop1 = value; } }
+
+        public string CameraPort1 { get { return cameraPort1; } set { cameraPort1 = value; } }
+
+        public string Camera1DCF { get { return camera1dcf; } set { camera1dcf = value; } }
+
+        public int GrabHeight { get { return grabHeight; } set { grabHeight = value; } }
+
+        public string SaveDrive { get { return savedrive; } set { savedrive = value; } }
+    }
+}

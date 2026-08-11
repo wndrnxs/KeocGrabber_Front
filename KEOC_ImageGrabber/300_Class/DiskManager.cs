@@ -241,7 +241,10 @@ namespace KEOC_ImageGrabber
             DateTime now;
             double dTotalLengthGB = 0;
 
-            string strDriveLetter = m_strDstImgPath.Substring(0, m_strDstLogPath.IndexOf(':'));
+            // 상대경로("./")면 드라이브 문자(':')가 없어 예외가 나므로 절대경로로 변환 후 추출.
+            string strFullImgPath = Path.GetFullPath(m_strDstImgPath);
+            int nColonIdx = strFullImgPath.IndexOf(':');
+            string strDriveLetter = nColonIdx > 0 ? strFullImgPath.Substring(0, nColonIdx) : "";
             double dDriveUsage = 0;
             double dTotalDriveSize = 0;
 
