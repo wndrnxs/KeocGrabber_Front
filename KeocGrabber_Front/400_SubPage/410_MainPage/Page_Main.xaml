@@ -81,7 +81,7 @@
                 </UniformGrid>
                 -->
             </Grid>
-            <!-- 큐 적체 테스트용 가상 요청 주입. Operator 권한일 때만 표시. -->
+            <!-- 큐 적체 테스트용 가상 요청 주입. Engineer 권한일 때만 표시. -->
             <Grid Grid.Row="1">
                 <uc:UserButton Content="Test Push Request" Click="bn_TestPushRequest_Click" CornerRadius="3" Margin="3"/>
             </Grid>

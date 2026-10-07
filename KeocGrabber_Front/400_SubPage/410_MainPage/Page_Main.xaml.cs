@@ -63,8 +63,8 @@ namespace KeocGrabber_Front
         {
             datacontext.TestBtnHeight = G.USERLEVEL == EN_AUTHORITY.EN_ENGINEER ? 20 : 0;
 
-            //! 가상 요청 주입 버튼은 Operator 권한일 때만 노출.  2026/08/11
-            datacontext.TestMsgBtnHeight = G.USERLEVEL == EN_AUTHORITY.EN_OPERATOR ? 30 : 0;
+            //! 가상 요청 주입 버튼은 Engineer 권한일 때만 노출. Manual Grab 버튼과 높이 통일.  2026/10/07
+            datacontext.TestMsgBtnHeight = G.USERLEVEL == EN_AUTHORITY.EN_ENGINEER ? 20 : 0;
         }
 
         public void fn_WriteLog(string strMsg, bool bError)
