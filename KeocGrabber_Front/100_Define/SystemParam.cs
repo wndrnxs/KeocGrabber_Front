@@ -49,6 +49,13 @@ namespace KeocGrabber_Front
         //  - 단위 : ms. 0 이하로 설정 시 폐기 기능 미사용.
         int requestTimeout = 300000;
 
+        //! 센서 트리거 후 촬상 시작 지연 시간.  2026/11/03
+        //  - 센서 신호를 받은 시점부터 설정 시간만큼 대기한 뒤 그랩을 시작함.
+        //  - 그래버 보드의 하드웨어 타이머로 지연하므로 소프트웨어 지터가 없음.
+        //  - 단위 : ms. 0 이하로 설정 시 지연 미사용. (DCF 트리거 설정 그대로 사용)
+        //  - 프로그램 시작 시 1회 적용되므로 변경 후 재시작 필요.
+        int grabTriggerDelay = 0;
+
         string strCurrRecipeName = "-";
         public string CurrRecipeName { get { return strCurrRecipeName; } set { strCurrRecipeName = value; } }
         string strCurrRecipePath = "-";
@@ -85,6 +92,12 @@ namespace KeocGrabber_Front
         /// 0 이하 설정 시 폐기 기능 미사용.
         /// </summary>
         public int RequestTimeout { get { return requestTimeout; } set { requestTimeout = value; } }
+
+        /// <summary>
+        /// 센서 트리거 후 촬상 시작까지의 지연 시간. [ms]
+        /// 0 이하 설정 시 지연 미사용.
+        /// </summary>
+        public int GrabTriggerDelay { get { return grabTriggerDelay; } set { grabTriggerDelay = value; } }
 
         public string SaveDrive { get { return savedrive; } set { savedrive = value; } }
     }

@@ -147,6 +147,9 @@ namespace KeocGrabber_Front
                 MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_TIMEOUT, MIL.M_INFINITE);
                 MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_MODE, MIL.M_ASYNCHRONOUS);
 
+                // 센서 트리거 지연 설정.
+                fn_SetGrabTriggerDelay(G.SYSTEM.GrabTriggerDelay);
+
                 delLog?.Invoke($"MIL Init.({BoardIndex})");
 
                 m_matGrab = Mat.Zeros(new Size(m_MilImageSizeX, m_MilImageSizeY), matType);
@@ -286,6 +289,101 @@ namespace KeocGrabber_Front
             return 0;
         }
         
+        //! 센서 트리거 후 촬상 시작 지연.  2026/11/03
+        //  - DCF에 설정된 그랩 트리거(센서 입력)를 보드 타이머의 트리거로 옮기고,
+        //    타이머 출력을 그랩 트리거로 사용하여 '센서 신호 → 지연 → 그랩' 순서로 동작시킴.
+        //  - 센서 입력 핀(AUX IO)과 극성은 DCF 설정을 그대로 읽어 사용하므로 별도 설정 불필요.
+        //  - DCF에서 노출 제어 등에 사용 중인 타이머는 건드리지 않도록 비어 있는 타이머를 선택.
+        //  - 타이머 설정이 실패하면 그랩 트리거를 바꾸지 않아 기존(지연 없음) 동작을 유지.
+        static readonly MIL_INT[] TIMER_LIST = { MIL.M_TIMER1, MIL.M_TIMER2, MIL.M_TIMER3, MIL.M_TIMER4 };
+        static readonly MIL_INT[] AUXIO_LIST =
+        {
+            MIL.M_AUX_IO0,  MIL.M_AUX_IO1,  MIL.M_AUX_IO2,  MIL.M_AUX_IO3,
+            MIL.M_AUX_IO4,  MIL.M_AUX_IO5,  MIL.M_AUX_IO6,  MIL.M_AUX_IO7,
+            MIL.M_AUX_IO8,  MIL.M_AUX_IO9,  MIL.M_AUX_IO10, MIL.M_AUX_IO11,
+            MIL.M_AUX_IO12, MIL.M_AUX_IO13, MIL.M_AUX_IO14, MIL.M_AUX_IO15
+        };
+
+        /// <summary>
+        /// 센서 트리거 후 촬상 시작 지연 설정.
+        /// </summary>
+        /// <param name="nDelayMs">지연 시간 [ms]. 0 이하면 미사용.</param>
+        private void fn_SetGrabTriggerDelay(int nDelayMs)
+        {
+            if (nDelayMs <= 0)
+            {
+                delLog?.Invoke($"Grab Trigger Delay Disabled.({BoardIndex})");
+                return;
+            }
+
+            // DCF에 설정된 센서 입력 확인.
+            MIL_INT nTrigSource = 0;
+            MIL_INT nTrigActivation = 0;
+            MIL.MdigInquire(m_MilDigitizer, MIL.M_GRAB_TRIGGER_SOURCE, ref nTrigSource);
+            MIL.MdigInquire(m_MilDigitizer, MIL.M_GRAB_TRIGGER_ACTIVATION, ref nTrigActivation);
+
+            int nAuxIO = Array.IndexOf(AUXIO_LIST, nTrigSource);
+            if (nAuxIO < 0)
+            {
+                G.WriteLog($"Grab Trigger Delay Fail. 그랩 트리거 소스가 AUX IO가 아님. [{nTrigSource}] 지연 없이 동작.", true);
+                return;
+            }
+
+            // 타이머 트리거는 엣지만 사용하므로 레벨 설정은 같은 극성의 엣지로 변환.
+            MIL_INT nTimerActivation = (nTrigActivation == MIL.M_EDGE_FALLING || nTrigActivation == MIL.M_LEVEL_LOW)
+                                       ? MIL.M_EDGE_FALLING : MIL.M_EDGE_RISING;
+
+            // 사용 중이지 않은 타이머 선택.
+            int nTimerIdx = -1;
+            for (int i = 0; i < TIMER_LIST.Length; i++)
+            {
+                MIL_INT nState = MIL.M_ENABLE;
+                MIL.MdigInquire(m_MilDigitizer, MIL.M_TIMER_STATE + TIMER_LIST[i], ref nState);
+                if (nState == MIL.M_DISABLE)
+                {
+                    nTimerIdx = i;
+                    break;
+                }
+            }
+            if (nTimerIdx < 0)
+            {
+                G.WriteLog($"Grab Trigger Delay Fail. 사용 가능한 타이머 없음. 지연 없이 동작.", true);
+                return;
+            }
+            MIL_INT nTimer = TIMER_LIST[nTimerIdx];
+
+            // 타이머 설정 : 센서 입력 → 지연 → 펄스 출력. (단위 : nsec)
+            MIL.MdigControl(m_MilDigitizer, MIL.M_TIMER_TRIGGER_SOURCE + nTimer, nTrigSource);
+            MIL.MdigControl(m_MilDigitizer, MIL.M_TIMER_TRIGGER_ACTIVATION + nTimer, nTimerActivation);
+            MIL.MdigControl(m_MilDigitizer, MIL.M_TIMER_DELAY + nTimer, nDelayMs * 1000000.0);
+            MIL.MdigControl(m_MilDigitizer, MIL.M_TIMER_DURATION + nTimer, 1000000.0); // 1ms 펄스.
+            MIL.MdigControl(m_MilDigitizer, MIL.M_TIMER_STATE + nTimer, MIL.M_ENABLE);
+
+            // 타이머가 실제로 적용되었는지 확인 후에만 그랩 트리거를 타이머로 전환.
+            MIL_INT nState2 = MIL.M_DISABLE;
+            double dDelayNs = 0;
+            MIL.MdigInquire(m_MilDigitizer, MIL.M_TIMER_STATE + nTimer, ref nState2);
+            MIL.MdigInquire(m_MilDigitizer, MIL.M_TIMER_DELAY + nTimer, ref dDelayNs);
+            if (nState2 != MIL.M_ENABLE || dDelayNs <= 0)
+            {
+                MIL.MdigControl(m_MilDigitizer, MIL.M_TIMER_STATE + nTimer, MIL.M_DISABLE);
+                G.WriteLog($"Grab Trigger Delay Fail. 타이머 설정 실패. 지연 없이 동작.", true);
+                return;
+            }
+
+            MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_TRIGGER_SOURCE, nTimer);
+            MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_TRIGGER_ACTIVATION, MIL.M_EDGE_RISING);
+
+            delLog?.Invoke($"Grab Trigger Delay Set.({BoardIndex}) [AUX_IO{nAuxIO}" +
+                           $"({(nTimerActivation == MIL.M_EDGE_FALLING ? "Falling" : "Rising")}) → TIMER{nTimerIdx + 1} → Grab, " +
+                           $"{dDelayNs / 1000000.0:F1} ms]");
+
+            if (G.SYSTEM.GrabTimeout > 0 && nDelayMs >= G.SYSTEM.GrabTimeout)
+            {
+                G.WriteLog($"Grab Trigger Delay({nDelayMs} ms)가 Grab Timeout({G.SYSTEM.GrabTimeout} ms) 이상. 촬상 전에 타임아웃 발생.", true);
+            }
+        }
+
         public bool fn_GetIOValue()
         {
             MIL_INT IOState = 0;
