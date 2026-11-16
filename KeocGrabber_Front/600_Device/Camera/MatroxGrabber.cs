@@ -320,10 +320,30 @@ namespace KeocGrabber_Front
         }
 
         /// <summary>
-        /// DCF에 설정된 그랩 트리거 소스로 센서 입력 확인.
+        /// 센서 입력 지정 및 확인.
         /// </summary>
         private void fn_DetectSensorInput()
         {
+            //! 시스템 파라메터로 센서 입력 지정.  2026/11/16
+            //  - DCF에 그랩 트리거가 설정되어 있지 않은 경우(연속 그랩/프리런 DCF)를 위해
+            //    SensorAuxIO가 0 이상이면 DCF 값을 덮어씀. -1이면 DCF 설정을 그대로 사용.
+            int nCfgAuxIO = G.SYSTEM.SensorAuxIO;
+            if (nCfgAuxIO >= 0)
+            {
+                if (nCfgAuxIO < AUXIO_LIST.Length)
+                {
+                    bool bFalling = (G.SYSTEM.SensorActivation ?? "").Trim().ToUpper() == "FALLING";
+                    MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_TRIGGER_SOURCE, AUXIO_LIST[nCfgAuxIO]);
+                    MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_TRIGGER_ACTIVATION, bFalling ? MIL.M_EDGE_FALLING : MIL.M_EDGE_RISING);
+                    G.WriteLog($"Sensor Input 설정. [AUX_IO{nCfgAuxIO}, {(bFalling ? "Falling" : "Rising")}] (SystemParam)");
+                }
+                else
+                {
+                    G.WriteLog($"SensorAuxIO 범위 초과. [{nCfgAuxIO}] (0~{AUXIO_LIST.Length - 1}) DCF 설정 사용.", true);
+                }
+            }
+
+            // 실제 적용된 값을 다시 읽어 확인.
             MIL_INT nTrigSource = 0;
             MIL.MdigInquire(m_MilDigitizer, MIL.M_GRAB_TRIGGER_SOURCE, ref nTrigSource);
             MIL.MdigInquire(m_MilDigitizer, MIL.M_GRAB_TRIGGER_ACTIVATION, ref m_nSensorActivation);

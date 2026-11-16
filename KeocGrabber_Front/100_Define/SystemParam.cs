@@ -66,6 +66,13 @@ namespace KeocGrabber_Front
         //  - 프로그램 시작 시 1회 적용되므로 변경 후 재시작 필요.
         int grabTriggerDelay = 0;
 
+        //! 센서(그랩 트리거) 입력 지정.  2026/11/16
+        //  - DCF에 그랩 트리거가 설정되어 있지 않을 때 프로그램에서 지정.
+        //  - SensorAuxIO : 센서가 연결된 AUX IO 번호. -1이면 DCF 설정 사용.
+        //  - SensorActivation : RISING / FALLING. 센서 감지 시 신호가 켜지면 RISING.
+        int sensorAuxIO = -1;
+        string sensorActivation = "RISING";
+
         string strCurrRecipeName = "-";
         public string CurrRecipeName { get { return strCurrRecipeName; } set { strCurrRecipeName = value; } }
         string strCurrRecipePath = "-";
@@ -118,6 +125,16 @@ namespace KeocGrabber_Front
         /// 0 이하 설정 시 지연 미사용.
         /// </summary>
         public int GrabTriggerDelay { get { return grabTriggerDelay; } set { grabTriggerDelay = value; } }
+
+        /// <summary>
+        /// 센서가 연결된 AUX IO 번호. -1이면 DCF 설정 사용.
+        /// </summary>
+        public int SensorAuxIO { get { return sensorAuxIO; } set { sensorAuxIO = value; } }
+
+        /// <summary>
+        /// 센서 신호 유효 엣지. (RISING / FALLING)
+        /// </summary>
+        public string SensorActivation { get { return sensorActivation; } set { sensorActivation = value; } }
 
         public string SaveDrive { get { return savedrive; } set { savedrive = value; } }
     }
