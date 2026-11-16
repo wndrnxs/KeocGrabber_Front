@@ -181,37 +181,70 @@ namespace KeocGrabber_Front
         /// 수신한 변환 데이터를 로그에 기록.
         /// </summary>
         /// <param name="msg">수신 받은 메시지</param>
-        public void WriteRecvMsg(byte[] msg) 
+        //! 헤더를 위치별 규칙으로 변환.  2026/11/16
+        //  - 기존에는 헤더 값을 하나의 enum 이름으로 변환하여, 값이 같은 이름(0x01 : SOH/VTO/SEND,
+        //    0x10 : OTV/RECV, 0x00 : NUL/ENQ_NULL)이 위치와 무관하게 출력되고 Length도 이름으로
+        //    찍히는 경우가 있었음. 또한 ENQ, STX가 빠지고 사용하지 않는 칸이 NUL로 출력되었음.
+        //  - 사양(S/W 개발 간 요청 사항 4) 형식으로 출력.
+        //    예) 0x010F0066000001010502CellID1,CellID200 => SOH.15.START.NUL.VTO.SEND.ENQ(REQ).STX.CellID1,CellID2.00
+        //        0x0100006600061010000200 => SOH.0.START.ACK.OTV.RECV.ENQ(NUL).STX.NUL
+        public void WriteRecvMsg(byte[] msg)
         {
+            if (msg == null || msg.Length < 10)
+            {
+                G.WriteLog($"Invalid Message. [{(msg == null ? "null" : BitConverter.ToString(msg).Replace("-", ""))}]", true);
+                return;
+            }
+
             byte[] header = new byte[10];
             Array.Copy(msg, header, 10);
-            string strLog;
-            string strString = "";
-            string strCellid = "";
-            ushort length = msg[1];
-            COMM_PROTOCALL[] protocall = new COMM_PROTOCALL[8];
-            protocall[0] = (COMM_PROTOCALL)msg[0];
-            protocall[1] = (COMM_PROTOCALL)msg[1];
-            protocall[2] = (COMM_PROTOCALL)msg[3];
-            for (int i = 5; i < 8; i++)
-            {
-                protocall[i] = (COMM_PROTOCALL)msg[i];
-            }
 
-            for (int i = 0; i < 8; i++)
-            {
-                strString += $"{protocall[i].ToString()}.";
-            }
+            // Length는 header[1]만 사용. (NUL 제외 데이터 길이)
+            int length = Math.Min((int)msg[1], msg.Length - 10);
+            string strCellid = length > 0 ? Encoding.ASCII.GetString(msg, 10, length) : "";
 
-            if (length > 0)
+            string[] fields =
             {
-                byte[] bytedata = new byte[length];
-                Array.Copy(msg, 10, bytedata, 0, length);
-                strCellid = Encoding.ASCII.GetString(bytedata);
-            }
-            strString += $"{strCellid}.00";
-            strLog = $"0x{BitConverter.ToString(header).Replace("-", "")}{strCellid}00 => {strString}";
+                fn_HeaderName(msg[0], 0x01, "SOH"),                                     // 1 : SOH
+                msg[1].ToString(),                                                       // 2~3 : Length (10진수)
+                fn_CmdName(msg[3]),                                                      // 4~5 : CMD
+                fn_HeaderName(msg[5], 0x06, "ACK", 0x15, "NAK", 0x00, "NUL"),            // 6 : ACK/NAK
+                fn_HeaderName(msg[6], 0x01, "VTO", 0x10, "OTV"),                         // 7 : Direction
+                fn_HeaderName(msg[7], 0x01, "SEND", 0x10, "RECV"),                       // 8 : 송신/회신
+                fn_HeaderName(msg[8], 0x05, "ENQ(REQ)", 0x00, "ENQ(NUL)"),               // 9 : ENQ
+                fn_HeaderName(msg[9], 0x02, "STX"),                                      // 10 : STX
+            };
+
+            // 데이터가 있으면 끝을 00, 없으면 NUL로 표기. (사양 예시 기준)
+            string strString = string.Join(".", fields) + (strCellid != "" ? $".{strCellid}.00" : ".NUL");
+            string strLog = $"0x{BitConverter.ToString(header).Replace("-", "")}{strCellid}00 => {strString}";
             G.WriteLog(strLog);
+        }
+
+        /// <summary>
+        /// 헤더 위치별 값 → 이름 변환. 정의되지 않은 값은 16진수로 표기.
+        /// </summary>
+        /// <param name="value">헤더 값</param>
+        /// <param name="pairs">(값, 이름) 쌍 목록</param>
+        private static string fn_HeaderName(byte value, params object[] pairs)
+        {
+            for (int i = 0; i + 1 < pairs.Length; i += 2)
+            {
+                if (Convert.ToByte(pairs[i]) == value)
+                    return (string)pairs[i + 1];
+            }
+            return $"0x{value:X2}";
+        }
+
+        private static string fn_CmdName(byte value)
+        {
+            switch (value)
+            {
+                case (byte)COMM_PROTOCALL.START:  return "START";
+                case (byte)COMM_PROTOCALL.END:    return "END";
+                case (byte)COMM_PROTOCALL.STATUS: return "STATUS";
+            }
+            return $"0x{value:X2}";
         }
 
     }
