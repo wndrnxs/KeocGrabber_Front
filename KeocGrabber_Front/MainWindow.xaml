@@ -46,6 +46,25 @@
                 </UniformGrid>
             </Grid>
         </Grid>
+        <!-- 하단 상태 표시줄. 센서 입력 ON 시 청색 표시. 마우스를 올리면 입력 핀/감지 횟수 표시, 더블클릭 시 횟수 초기화. -->
+        <Border DockPanel.Dock="Bottom" Height="20" BorderBrush="LightGray" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Background="Transparent" ToolTip="{Binding SensorTip}" MouseLeftButtonDown="Sensor_MouseLeftButtonDown">
+                <TextBlock Text="Sensor" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <Ellipse Width="12" Height="12" Stroke="Gray" StrokeThickness="1" Margin="0,0,4,0">
+                    <Ellipse.Style>
+                        <Style TargetType="{x:Type Ellipse}">
+                            <Setter Property="Fill" Value="LightGray"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SensorOn}" Value="True">
+                                    <Setter Property="Fill" Value="DodgerBlue"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+            </StackPanel>
+        </Border>
         <Grid>
             <Frame x:Name="frame" NavigationUIVisibility="Hidden"/>
         </Grid>

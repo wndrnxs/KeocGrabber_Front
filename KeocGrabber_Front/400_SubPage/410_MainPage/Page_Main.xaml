@@ -69,7 +69,6 @@
                 <RowDefinition Height="60"/>
                 <RowDefinition Height="60"/>
                 <RowDefinition Height="60"/>
-                <RowDefinition Height="60"/>
                 <RowDefinition Height="4*"/>
             </Grid.RowDefinitions>
             <Grid Grid.Row="0">
@@ -166,31 +165,7 @@
                     </UniformGrid>
                 </GroupBox>
             </Grid>
-            <!-- 센서 입력 상태. 더블클릭 시 감지 횟수 초기화. -->
             <Grid Grid.Row="5">
-                <GroupBox Header="Sensor" MouseDoubleClick="Sensor_MouseDoubleClick">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1*"/>
-                            <ColumnDefinition Width="2*"/>
-                        </Grid.ColumnDefinitions>
-                        <Border>
-                            <Border.Style>
-                                <Style TargetType="{x:Type Border}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SensorState}" Value="ON">
-                                            <Setter Property="Background" Value="{StaticResource OKBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <TextBlock Text="{Binding SensorState}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <TextBlock Grid.Column="1" Text="{Binding SensorInfo}" Margin="5,0" VerticalAlignment="Center" TextWrapping="Wrap"/>
-                    </Grid>
-                </GroupBox>
-            </Grid>
-            <Grid Grid.Row="6">
                 <GroupBox Header="Log">
                     <ListBox Name="listLog"/>
                 </GroupBox>

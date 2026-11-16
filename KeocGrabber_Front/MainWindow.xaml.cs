@@ -34,6 +34,15 @@ namespace KeocGrabber_Front
         public Page_Communication PageCommunication { get { return pageCommunication; } set { pageCommunication = value; OnPropertyChanged(); } }
 
         public string CurrRecipe { get { return G.SYSTEM.CurrRecipeName; } set { G.SYSTEM.CurrRecipeName = value; OnPropertyChanged(); } }
+
+        //! 하단 상태 표시줄 센서 입력 표시.  2026/11/16
+        //  - SensorOn  : 센서 감지 중이면 청색. (DCF/설정 극성 기준)
+        //  - SensorTip : 입력 핀, 감지 횟수, 마지막 감지 시각. (마우스 오버 시 표시)
+        bool bSensorOn = false;
+        public bool SensorOn { get { return bSensorOn; } set { if (bSensorOn != value) { bSensorOn = value; OnPropertyChanged(); } } }
+
+        string strSensorTip = "";
+        public string SensorTip { get { return strSensorTip; } set { if (strSensorTip != value) { strSensorTip = value; OnPropertyChanged(); } } }
     }
 
     /// <summary>
@@ -219,20 +228,29 @@ namespace KeocGrabber_Front
             bool? bHigh = G.GRABBER.SensorState;
             if (nAuxIO < 0 || bHigh == null)
             {
-                mc_pageMain.datacontext.SensorState = "-";
-                mc_pageMain.datacontext.SensorInfo = "센서 입력 확인 불가 (DCF 트리거 설정 확인)";
+                datacontext.SensorOn = false;
+                datacontext.SensorTip = "센서 입력 확인 불가 (DCF 트리거 또는 SensorAuxIO 설정 확인)";
                 return;
             }
 
             bool bFalling = G.GRABBER.IsSensorFalling;
-            bool bActive = bFalling ? !bHigh.Value : bHigh.Value;
             DateTime? dtLast = G.GRABBER.SensorLastTime;
 
-            mc_pageMain.datacontext.SensorState = bActive ? "ON" : "OFF";
-            mc_pageMain.datacontext.SensorInfo =
-                $"AUX_IO{nAuxIO} ({(bFalling ? "Falling" : "Rising")})  " +
-                $"Count : {G.GRABBER.SensorCount}  " +
-                $"Last : {(dtLast.HasValue ? dtLast.Value.ToString("HH:mm:ss.fff") : "-")}";
+            datacontext.SensorOn = bFalling ? !bHigh.Value : bHigh.Value;
+            datacontext.SensorTip =
+                $"AUX_IO{nAuxIO} ({(bFalling ? "Falling" : "Rising")})\n" +
+                $"Count : {G.GRABBER.SensorCount}\n" +
+                $"Last : {(dtLast.HasValue ? dtLast.Value.ToString("HH:mm:ss.fff") : "-")}\n" +
+                $"(더블클릭 : Count 초기화)";
+        }
+
+        private void Sensor_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                G.GRABBER.fn_ResetSensorCount();
+                G.WriteLog("Sensor Count Reset.");
+            }
         }
 
         public void fn_SetupUpdateAutority()

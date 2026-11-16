@@ -45,15 +45,6 @@ namespace KeocGrabber_Front
         double dTestMsgBtnHeight = 0;
         public double TestMsgBtnHeight { get { return dTestMsgBtnHeight; } set { dTestMsgBtnHeight = value; OnPropertyChanged(); } }
 
-        //! 센서 입력 표시.  2026/11/16
-        //  - SensorState : ON(감지) / OFF / -(확인 불가). DCF 극성 기준.
-        //  - SensorInfo  : 입력 핀, 감지 횟수, 마지막 감지 시각.
-        string strSensorState = "-";
-        public string SensorState { get { return strSensorState; } set { if (strSensorState != value) { strSensorState = value; OnPropertyChanged(); } } }
-
-        string strSensorInfo = "";
-        public string SensorInfo { get { return strSensorInfo; } set { if (strSensorInfo != value) { strSensorInfo = value; OnPropertyChanged(); } } }
-
         bool bIsGrabStop = true;
         public bool IsGrabStop { get { return bIsGrabStop; } set { bIsGrabStop = value; OnPropertyChanged(); } }
     }
@@ -136,12 +127,6 @@ namespace KeocGrabber_Front
             G.WriteLog($"png : {sw.ElapsedMilliseconds:F2} ms");
             sw.Stop();
             });
-        }
-
-        private void Sensor_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            G.GRABBER.fn_ResetSensorCount();
-            G.WriteLog("Sensor Count Reset.");
         }
 
         private void GrabState1_MouseDoubleClick(object sender, MouseButtonEventArgs e)
