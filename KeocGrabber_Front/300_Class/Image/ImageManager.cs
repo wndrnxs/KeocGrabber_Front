@@ -88,7 +88,9 @@ namespace KeocGrabber_Front
                     m_matCamImgage[i].Release();
                 }
                 m_matCamImgage = null;
-                m_nAttachCount = null;
+                //! m_nAttachCount는 위에서 새로 할당했으므로 해제하지 않음.  2026/11/16
+                //  - 기존에는 버퍼 재생성(Setup의 그랩 높이 변경) 시 null로 남아, 이후 AttachImage가
+                //    예외로 실패하여 이미지가 완성되지 않았음.
             }
 
             MatType type = MatType.CV_8UC1;

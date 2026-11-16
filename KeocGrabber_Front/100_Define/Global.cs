@@ -151,8 +151,17 @@ namespace KeocGrabber_Front
             GRABBER.fn_Init(Define.CAM_COUNT, new List<string>() {G.SYSTEM.Camera1DCF});
             //GRABBER.fn_Init(Define.CAM_COUNT, new List<string>() {G.SYSTEM.Camera1DCF, G.SYSTEM.Camera2DCF, G.SYSTEM.Camera3DCF, G.SYSTEM.Camera4DCF });
 
-            //IMAGEMANAGER.fn_Init(Define.CAM_COUNT, GRABBER.ImageWidth, G.SYSTEM.GrabHeight, 1);
-            IMAGEMANAGER.fn_Init(Define.CAM_COUNT, 16384, G.SYSTEM.GrabHeight, 1);
+            //! 이미지 버퍼 폭을 DCF의 실제 폭으로 생성.  2026/11/16
+            //  - 기존에는 16k 카메라 기준 16384로 고정되어, 4k 카메라(Dalsa Linea)에서 왼쪽 4096만 채워지고
+            //    나머지는 검은 영역으로 남았음.
+            //  - 그래버 초기화 실패(DCF 오류 등)로 폭을 알 수 없을 때만 기존 값 사용.
+            int nGrabWidth = GRABBER.ImageWidth;
+            if (nGrabWidth <= 0)
+            {
+                nGrabWidth = 16384;
+                G.WriteLog($"그래버 이미지 폭 확인 불가. 기본 폭 {nGrabWidth}로 버퍼 생성.", true);
+            }
+            IMAGEMANAGER.fn_Init(Define.CAM_COUNT, nGrabWidth, G.SYSTEM.GrabHeight, 1);
 
             LIGHT.fn_Init();
 
