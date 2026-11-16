@@ -96,7 +96,8 @@
 `Logger.cs`가 비동기 큐와 전용 스레드로 로그를 기록합니다.
 
 - 경로: `{SYSTEM.LogPath}/yyyy/MM/dd/*.csv` (기본 `D:/Angleview/`)
-- 파일 분류: 에러 → `Error.csv`, 통신 → `Communication.csv`, 그 외(그래버/조명/카메라/디스크/전역) → `Trace.csv`
+- 파일 분류: 에러 → `Error.csv`, 통신(TCP 연결/해제, 송수신 메시지) → `Communication.csv`, 그 외(그래버/조명/카메라/디스크/전역) → `Trace.csv`
+- 송수신 메시지 로그: START 수신, ACK/NAK 회신, END 송신, STATUS 송신을 모두 기록합니다. 헤더는 Hex 원본과 위치별 변환값을 함께 남깁니다(예: `0x0100006600061010000200 => SOH.0.START.ACK.OTV.RECV.ENQ(NUL).STX.NUL`). 5초 주기 STATUS는 화면 로그에는 표시하지 않고 파일에만 기록합니다.
 - 보관 정책은 이미지/로그 정리를 담당하는 DiskManager의 보관일수 정책을 그대로 따릅니다.
 
 ## 설정 / 레시피

@@ -112,6 +112,7 @@ namespace KeocGrabber_Front
             {
                 //case "GiGABoard"        : strFileName = "GiGABoard"; break;
                 case "TCPIPServer"      : strFileName = "Communication"; break;
+                case "ProtocallManager" : strFileName = "Communication"; break; // 송수신 메시지 로그.  2026/11/16
                 case "GrabberManager"   :
                 case "LightManager"     :
                 case "VieworksCamera"   :
