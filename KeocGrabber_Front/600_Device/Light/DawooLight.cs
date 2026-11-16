@@ -1,4 +1,4 @@
-﻿﻿/*
+﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
  *******************************************************************************
@@ -23,31 +23,62 @@ namespace KeocGrabber_Front
     //  - 컨트롤러가 LOCAL 모드면 모든 명령이 0x80 에러로 거부되므로 REMOTE 모드로 두어야 함.
     //  - 조명 온도 70도 도달 시 컨트롤러가 출력을 자동 차단하며, ON 명령 재전송으로 복귀.
     //  - 기존 3채널 다우 컨트롤러용 코드를 DLC-050 사양으로 재작성.
+    //
+    //! 명령 전송 스레드.  2026/11/16
+    //  - 슬라이더 조작처럼 짧은 간격으로 명령이 연속되면 컨트롤러가 일부 명령을 처리하지 못했음.
+    //  - 명령을 큐에 쌓고 전송 스레드가 하나씩 보내며, 응답(또는 타임아웃)을 확인한 뒤 다음 명령을 보냄.
+    //  - 아직 보내지 않은 같은 채널의 밝기 명령은 최신 값으로 덮어써서 불필요한 전송을 줄임.
     class DawooLight : ILightController
     {
         SerialComm m_comm = new SerialComm();
 
         public bool IsConnected { get { return m_comm.IsConnected; } }
+        public int ChannelCount { get { return MAX_CHANNEL; } }
+        public int MaxValue { get { return MAX_VALUE; } }
 
         const byte HEADER       = 0xFF;
         const byte CMD_DIMMING  = 0x01;
         const byte CMD_ONOFF    = 0x02;
         const byte CMD_RD_DIM   = 0x11;
         const byte CMD_RD_ONOFF = 0x12;
+        const byte RESP_STATUS  = 0x00;     // 상태 응답(정상/에러) 대기 표시.
 
         const int MAX_CHANNEL = 2;
         const byte CH_ALL = 0x03;
         const int MAX_VALUE = 3500;
 
-        const int RECV_TIMEOUT = 1000;
+        const int RECV_TIMEOUT = 1000;      // 응답 대기 시간. (사양 : 1000ms 이상 무응답 시 타임아웃)
+        const int CMD_INTERVAL = 20;        // 응답 수신 후 다음 명령까지 간격.
+        const int FLUSH_TIMEOUT = 3000;     // 종료 시 남은 명령(조명 OFF 등) 전송 최대 대기.
 
         bool[] m_bOnoff = new bool[MAX_CHANNEL];
         int[] m_nLightValue = new int[MAX_CHANNEL];
 
+        /// <summary>전송할 명령 1건.</summary>
+        class LightCmd
+        {
+            public byte[] Frame;                // Header, Checksum 포함 전송 데이터.
+            public byte Expect;                 // 기다릴 응답. (RESP_STATUS 또는 조회 명령 코드)
+            public string Desc;                 // 로그용 설명.
+            public bool IsDimming;
+            public byte Channel;
+            public bool Result;
+            public ManualResetEventSlim Done = new ManualResetEventSlim(false);
+        }
+
+        readonly List<LightCmd> m_listCmd = new List<LightCmd>();
+        readonly object m_lockCmd = new object();
+        readonly AutoResetEvent m_evtCmd = new AutoResetEvent(false);
+        Thread m_threadSend = null;
+        volatile bool m_bRun = false;
+        volatile LightCmd m_cmdSending = null;      // 전송 후 응답 대기 중인 명령.
+
+        // 응답 수신 처리. (수신 스레드 → 전송 스레드)
         List<byte> m_bufRecv = new List<byte>();
-        readonly object m_lockQuery = new object();     // 조회 명령 동시 실행 방지.
-        volatile byte m_nWaitCmd = 0x00;                // 응답 대기 중인 조회 명령.
-        volatile bool m_bQueryError = false;            // 조회 명령에 에러 응답 수신.
+        volatile byte m_nWaitResp = 0x00;
+        volatile bool m_bWaiting = false;
+        volatile bool m_bRespOk = false;
+        readonly AutoResetEvent m_evtResp = new AutoResetEvent(false);
 
         public void fn_InitPort()
         {
@@ -55,11 +86,31 @@ namespace KeocGrabber_Front
             m_comm.ReciveDataevent = RecvData;
             m_bufRecv = new List<byte>();
 
+            m_bRun = true;
+            m_threadSend = new Thread(THREAD_SEND) { IsBackground = true };
+            m_threadSend.Start();
+
             G.WriteLog($"Light Controller(DAWOO) Open {(bRet ? "Succ." : "Fail.")}. [{m_comm.ConnPort}]");
         }
 
         public void fn_FinalPort()
         {
+            // 종료 직전에 넣은 조명 OFF가 전송되도록 남은 명령을 먼저 처리.
+            Stopwatch sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < FLUSH_TIMEOUT)
+            {
+                lock (m_lockCmd)
+                {
+                    if (m_listCmd.Count == 0 && m_cmdSending == null)
+                        break;
+                }
+                Thread.Sleep(10);
+            }
+
+            m_bRun = false;
+            m_evtCmd.Set();
+            m_threadSend?.Join(RECV_TIMEOUT + 500);
+
             bool bRet = m_comm.Close();
             m_comm.ReciveDataevent = null;
             G.WriteLog($"Light Controller(DAWOO) Close {(bRet ? "Succ." : "Fail.")}. [{m_comm.ConnPort}]");
@@ -77,10 +128,15 @@ namespace KeocGrabber_Front
             return 0;
         }
 
+        private static string fn_ChannelText(int ch)
+        {
+            return ch == 0 ? "All" : ch.ToString();
+        }
+
         /// <summary>
-        /// Header와 Checksum을 붙여 명령 전송.
+        /// Header와 Checksum을 붙인 전송 데이터 생성.
         /// </summary>
-        private bool fn_Send(string strDesc, params byte[] body)
+        private static byte[] fn_MakeFrame(params byte[] body)
         {
             byte[] buff = new byte[body.Length + 2];
             buff[0] = HEADER;
@@ -91,11 +147,38 @@ namespace KeocGrabber_Front
                 chk ^= body[i];
             }
             buff[buff.Length - 1] = chk;
+            return buff;
+        }
 
-            bool bRet = m_comm.WriteValue(buff, false, false);
-            if (!bRet)
-                G.WriteLog($"DAWOO {strDesc} 전송 실패. 조명 컨트롤러 통신 확인 필요. [{m_comm.ConnPort}]", true);
-            return bRet;
+        /// <summary>
+        /// 명령을 전송 큐에 추가.
+        /// 아직 보내지 않은 같은 채널의 밝기 명령이 있으면 그 명령의 값을 최신 값으로 교체.
+        /// </summary>
+        private LightCmd fn_Enqueue(LightCmd cmd)
+        {
+            if (!m_comm.IsConnected)
+            {
+                G.WriteLog($"DAWOO {cmd.Desc} 전송 실패. 조명 컨트롤러 포트 닫힘. [{m_comm.ConnPort}]", true);
+                cmd.Done.Set();
+                return cmd;
+            }
+
+            lock (m_lockCmd)
+            {
+                if (cmd.IsDimming)
+                {
+                    LightCmd pending = m_listCmd.Find(c => c.IsDimming && c.Channel == cmd.Channel);
+                    if (pending != null)
+                    {
+                        pending.Frame = cmd.Frame;
+                        pending.Desc = cmd.Desc;
+                        return pending;
+                    }
+                }
+                m_listCmd.Add(cmd);
+            }
+            m_evtCmd.Set();
+            return cmd;
         }
 
         /// <summary>
@@ -114,8 +197,14 @@ namespace KeocGrabber_Front
             if (nValue != value)
                 G.WriteLog($"DAWOO 밝기 범위 초과. [{value}] → {nValue} (0~{MAX_VALUE})");
 
-            if (fn_Send("Set", CMD_DIMMING, code, (byte)(nValue >> 8), (byte)(nValue & 0xFF)))
-                G.WriteLog($"DAWOO Set : {(ch == 0 ? "All" : ch.ToString())} ch, {nValue}");
+            fn_Enqueue(new LightCmd
+            {
+                Frame = fn_MakeFrame(CMD_DIMMING, code, (byte)(nValue >> 8), (byte)(nValue & 0xFF)),
+                Expect = RESP_STATUS,
+                Desc = $"Set {fn_ChannelText(ch)} ch, {nValue}",
+                IsDimming = true,
+                Channel = code,
+            });
         }
 
         public void LightOn(int ch)
@@ -123,8 +212,12 @@ namespace KeocGrabber_Front
             byte code = fn_ChannelCode(ch);
             if (code == 0)
                 return;
-            if (fn_Send("Light ON", CMD_ONOFF, code, 0x01))
-                G.WriteLog($"DAWOO {(ch == 0 ? "All" : ch.ToString())} ch Light ON");
+            fn_Enqueue(new LightCmd
+            {
+                Frame = fn_MakeFrame(CMD_ONOFF, code, 0x01),
+                Expect = RESP_STATUS,
+                Desc = $"{fn_ChannelText(ch)} ch Light ON",
+            });
         }
 
         public void LightOff(int ch)
@@ -132,43 +225,31 @@ namespace KeocGrabber_Front
             byte code = fn_ChannelCode(ch);
             if (code == 0)
                 return;
-            if (fn_Send("Light OFF", CMD_ONOFF, code, 0x00))
-                G.WriteLog($"DAWOO {(ch == 0 ? "All" : ch.ToString())} ch Light OFF");
+            fn_Enqueue(new LightCmd
+            {
+                Frame = fn_MakeFrame(CMD_ONOFF, code, 0x00),
+                Expect = RESP_STATUS,
+                Desc = $"{fn_ChannelText(ch)} ch Light OFF",
+            });
         }
 
         /// <summary>
-        /// 조회 명령 전송 후 응답 대기.
+        /// 조회 명령을 큐에 넣고 처리 완료까지 대기.
         /// </summary>
-        /// <returns>응답 수신 여부.</returns>
+        /// <returns>정상 응답 수신 여부.</returns>
         private bool fn_Query(byte cmd)
         {
-            if (!m_comm.IsConnected)
-                return false;
-
-            lock (m_lockQuery)
+            LightCmd q = fn_Enqueue(new LightCmd
             {
-                m_bQueryError = false;
-                m_nWaitCmd = cmd;
-                if (!fn_Send($"Read(0x{cmd:X2})", cmd))
-                {
-                    m_nWaitCmd = 0x00;
-                    return false;
-                }
+                Frame = fn_MakeFrame(cmd),
+                Expect = cmd,
+                Desc = $"Read(0x{cmd:X2})",
+            });
 
-                // 전송 스레드 대기 시간을 고려하여 응답 시간에 여유를 둠.
-                Stopwatch sw = Stopwatch.StartNew();
-                while (m_nWaitCmd != 0x00)
-                {
-                    Thread.Sleep(20);
-                    if (sw.ElapsedMilliseconds > RECV_TIMEOUT + 500)
-                    {
-                        m_nWaitCmd = 0x00;
-                        G.WriteLog($"DAWOO Time-Out. [Read 0x{cmd:X2}]", true);
-                        return false;
-                    }
-                }
-                return !m_bQueryError;
-            }
+            // 앞에 쌓인 명령 처리 시간까지 고려하여 대기.
+            if (!q.Done.Wait(FLUSH_TIMEOUT))
+                return false;
+            return q.Result;
         }
 
         /// <summary>
@@ -199,6 +280,78 @@ namespace KeocGrabber_Front
             if (ch >= 1 && ch <= MAX_CHANNEL)
                 return m_bOnoff[ch - 1];
             return false;
+        }
+
+        /// <summary>
+        /// 명령 전송 스레드. 한 번에 하나씩 보내고 응답을 확인한 뒤 다음 명령 전송.
+        /// </summary>
+        private void THREAD_SEND()
+        {
+            while (m_bRun)
+            {
+                LightCmd cmd = null;
+                lock (m_lockCmd)
+                {
+                    if (m_listCmd.Count > 0)
+                    {
+                        cmd = m_listCmd[0];
+                        m_listCmd.RemoveAt(0);
+                        m_cmdSending = cmd;
+                    }
+                }
+
+                if (cmd == null)
+                {
+                    m_evtCmd.WaitOne(100);
+                    continue;
+                }
+
+                try
+                {
+                    cmd.Result = fn_SendAndWait(cmd);
+                }
+                catch (Exception ex)
+                {
+                    G.WriteLog($"DAWOO {cmd.Desc} 처리 오류. [{ex.Message}]", true);
+                    cmd.Result = false;
+                }
+                finally
+                {
+                    lock (m_lockCmd) m_cmdSending = null;
+                    cmd.Done.Set();
+                }
+
+                Thread.Sleep(CMD_INTERVAL);
+            }
+        }
+
+        private bool fn_SendAndWait(LightCmd cmd)
+        {
+            m_evtResp.Reset();
+            m_bRespOk = false;
+            m_nWaitResp = cmd.Expect;
+            m_bWaiting = true;
+
+            if (!m_comm.WriteNow(cmd.Frame))
+            {
+                m_bWaiting = false;
+                G.WriteLog($"DAWOO {cmd.Desc} 전송 실패. 조명 컨트롤러 통신 확인 필요. [{m_comm.ConnPort}]", true);
+                return false;
+            }
+
+            bool bRecv = m_evtResp.WaitOne(RECV_TIMEOUT);
+            m_bWaiting = false;
+
+            if (!bRecv)
+            {
+                G.WriteLog($"DAWOO {cmd.Desc} 응답 없음. [{RECV_TIMEOUT} ms]", true);
+                return false;
+            }
+            if (m_bRespOk && cmd.Expect == RESP_STATUS)
+            {
+                G.WriteLog($"DAWOO {cmd.Desc}");
+            }
+            return m_bRespOk;
         }
 
         /// <summary>
@@ -261,6 +414,7 @@ namespace KeocGrabber_Front
         private void fn_ParseFrame(byte[] frame)
         {
             byte second = frame[1];
+            bool bOk = true;
             switch (second)
             {
                 case 0x00:
@@ -274,18 +428,19 @@ namespace KeocGrabber_Front
                     m_bOnoff[1] = (frame[2] & 0x02) != 0;
                     break;
                 default:
-                    // 에러 응답. 조회 중이었다면 대기 해제.
-                    G.WriteLog($"DAWOO Error Response. [0x{second:X2} {fn_ErrorText(second)}]", true);
-                    if (m_nWaitCmd != 0x00)
-                    {
-                        m_bQueryError = true;
-                        m_nWaitCmd = 0x00;
-                    }
-                    return;
+                    // 에러 응답.
+                    G.WriteLog($"DAWOO Error Response. [0x{second:X2} {fn_ErrorText(second)}]" +
+                               (m_cmdSending != null ? $" ({m_cmdSending.Desc})" : ""), true);
+                    bOk = false;
+                    break;
             }
 
-            if (second == m_nWaitCmd)
-                m_nWaitCmd = 0x00;
+            // 대기 중인 응답이면 전송 스레드에 알림. 에러 응답은 어떤 명령이든 응답으로 처리.
+            if (m_bWaiting && (!bOk || second == m_nWaitResp))
+            {
+                m_bRespOk = bOk;
+                m_evtResp.Set();
+            }
         }
     }
 }

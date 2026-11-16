@@ -178,21 +178,21 @@
                                 <GroupBox Header="Light">
                                     <UniformGrid Columns="1">
                                         <uc:UserButton Content="Light On All" CornerRadius="3" Click="bn_LightOnAll_Click"/>
-                                        <uc:UserSlider USTitle="All ch" USValue="{Binding LightValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                        <uc:UserSlider USTitle="All ch" USValue="{Binding LightValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="{Binding LightMaxValue}" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
                                         <Grid> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
-                                            <uc:UserSlider USTitle="Ch 1" USValue="{Binding LightCh1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                            <uc:UserSlider USTitle="Ch 1" USValue="{Binding LightCh1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="{Binding LightMaxValue}" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
                                             <uc:UserButton Grid.Column="1" CornerRadius="3" Margin="3" Content="On" Click="bn_Ch_Click" Tag="1"/>
                                         </Grid>
                                         <Grid> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
-                                            <uc:UserSlider USTitle="Ch 2" USValue="{Binding LightCh2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                            <uc:UserSlider USTitle="Ch 2" USValue="{Binding LightCh2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="{Binding LightMaxValue}" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
                                             <uc:UserButton Grid.Column="1" CornerRadius="3" Margin="3" Content="On" Click="bn_Ch_Click" Tag="2"/>
                                         </Grid>
-                                        <Grid> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
-                                            <uc:UserSlider USTitle="Ch 3" USValue="{Binding LightCh3, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                        <Grid Visibility="{Binding LightCh3Visibility}"> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
+                                            <uc:UserSlider USTitle="Ch 3" USValue="{Binding LightCh3, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="{Binding LightMaxValue}" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
                                             <uc:UserButton Grid.Column="1" CornerRadius="3" Margin="3" Content="On" Click="bn_Ch_Click" Tag="3"/>
                                         </Grid>
-                                        <Grid> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
-                                            <uc:UserSlider USTitle="Ch 4" USValue="{Binding LightCh4, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="4000" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
+                                        <Grid Visibility="{Binding LightCh4Visibility}"> <Grid.ColumnDefinitions> <ColumnDefinition/> <ColumnDefinition Width="40"/> </Grid.ColumnDefinitions>
+                                            <uc:UserSlider USTitle="Ch 4" USValue="{Binding LightCh4, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" USMinimum="0" USMaximum="{Binding LightMaxValue}" USTickFrequency="25" USValueWidth="40" USTitleWidth="100"/>
                                             <uc:UserButton Grid.Column="1" CornerRadius="3" Margin="3" Content="On" Click="bn_Ch_Click" Tag="4"/>
                                         </Grid>
                                     </UniformGrid>

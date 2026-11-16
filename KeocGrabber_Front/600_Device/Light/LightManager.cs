@@ -28,6 +28,18 @@ namespace KeocGrabber_Front
             return m_light?.IsConnected == true;
         }
 
+        /// <summary>조명 채널 수. 초기화 전에는 4.</summary>
+        public int fn_GetChannelCount()
+        {
+            return m_light != null ? m_light.ChannelCount : 4;
+        }
+
+        /// <summary>조명 밝기 최대값. 초기화 전에는 4000.</summary>
+        public int fn_GetMaxValue()
+        {
+            return m_light != null ? m_light.MaxValue : 4000;
+        }
+
         public void fn_Init()
         {
             switch ((G.SYSTEM.LightType ?? "").Trim().ToUpper())

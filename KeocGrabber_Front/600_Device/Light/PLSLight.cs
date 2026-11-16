@@ -20,6 +20,10 @@ namespace KeocGrabber_Front
 
         public bool IsConnected { get { return serialComm.IsConnected; } }
 
+        // 화면/레시피 기준 4채널, 밝기 0~4000 사용.
+        public int ChannelCount { get { return 4; } }
+        public int MaxValue { get { return 4000; } }
+
         int m_nRecieveTimeout = 3000;
 
         bool m_bIsRecv = false;

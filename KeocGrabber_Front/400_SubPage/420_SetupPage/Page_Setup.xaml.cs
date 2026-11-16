@@ -74,12 +74,48 @@ namespace KeocGrabber_Front
 
         public float CamGain1 { get { return fCamGain1; } set { fCamGain1 = value; delUpdateGain?.Invoke(value);  OnPropertyChanged(nameof(CamGain1)); } }
 
-        public int LightValue { get { return nLightValue; } set { nLightValue = value; delUpdateLight?.Invoke(0, value); OnPropertyChanged(nameof(LightValue)); } }
+        //! All ch 변경 시 각 채널 표시값도 같은 값으로 갱신.  2026/11/16
+        //  - 컨트롤러에는 전체 채널 명령 1건만 보내고, 채널 슬라이더는 표시만 맞춤.
+        public int LightValue
+        {
+            get { return nLightValue; }
+            set
+            {
+                nLightValue = value;
+                delUpdateLight?.Invoke(0, value);
+                OnPropertyChanged(nameof(LightValue));
+
+                nLightValueCh1 = nLightValueCh2 = nLightValueCh3 = nLightValueCh4 = value;
+                OnPropertyChanged(nameof(LightCh1));
+                OnPropertyChanged(nameof(LightCh2));
+                OnPropertyChanged(nameof(LightCh3));
+                OnPropertyChanged(nameof(LightCh4));
+            }
+        }
         public int LightCh1 { get { return nLightValueCh1; } set { nLightValueCh1 = value; delUpdateLight?.Invoke(1, value); OnPropertyChanged(nameof(LightCh1)); } }
         public int LightCh2 { get { return nLightValueCh2; } set { nLightValueCh2 = value; delUpdateLight?.Invoke(2, value); OnPropertyChanged(nameof(LightCh2)); } }
         public int LightCh3 { get { return nLightValueCh3; } set { nLightValueCh3 = value; delUpdateLight?.Invoke(3, value); OnPropertyChanged(nameof(LightCh3)); } }
         public int LightCh4 { get { return nLightValueCh4; } set { nLightValueCh4 = value; delUpdateLight?.Invoke(4, value); OnPropertyChanged(nameof(LightCh4)); } }
 
+
+        //! 조명 컨트롤러 사양에 맞춘 슬라이더 최대값과 채널 표시.  2026/11/16
+        //  - 다우(2CH, 0~3500)는 Ch3, Ch4를 숨김.
+        int nLightMaxValue = 4000;
+        int nLightChCount = 4;
+        public int LightMaxValue { get { return nLightMaxValue; } set { nLightMaxValue = value; OnPropertyChanged(); } }
+        public int LightChCount
+        {
+            get { return nLightChCount; }
+            set
+            {
+                nLightChCount = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LightCh3Visibility));
+                OnPropertyChanged(nameof(LightCh4Visibility));
+            }
+        }
+        public Visibility LightCh3Visibility { get { return nLightChCount >= 3 ? Visibility.Visible : Visibility.Collapsed; } }
+        public Visibility LightCh4Visibility { get { return nLightChCount >= 4 ? Visibility.Visible : Visibility.Collapsed; } }
 
         public int CamIndex { get { return nCamIndex; } set { nCamIndex = value; delUpdateCamIndex?.Invoke(value); OnPropertyChanged(nameof(CamIndex)); } }
 
@@ -347,6 +383,8 @@ namespace KeocGrabber_Front
         private void Page_Loaded(object sender, RoutedEventArgs e)
         {
             fn_UpdateAutority();
+            datacontext.LightChCount = G.LIGHT.fn_GetChannelCount();
+            datacontext.LightMaxValue = G.LIGHT.fn_GetMaxValue();
             LoadRecipe(G.SYSTEM.CurrRecipePath);
         }
 

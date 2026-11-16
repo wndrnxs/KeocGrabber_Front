@@ -13,6 +13,11 @@ namespace KeocGrabber_Front
     {
         bool IsConnected { get; }
 
+        /// <summary>화면/레시피에서 사용하는 채널 수.</summary>
+        int ChannelCount { get; }
+        /// <summary>밝기 최대값.</summary>
+        int MaxValue { get; }
+
         void fn_InitPort();
         void fn_FinalPort();
 

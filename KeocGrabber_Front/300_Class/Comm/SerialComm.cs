@@ -354,6 +354,35 @@ namespace KeocGrabber_Front
             return bRet;
         }
 
+        //! 송신 큐를 거치지 않고 즉시 전송.  2026/11/16
+        //  - 응답을 확인한 뒤 다음 명령을 보내야 하는 장비(다우 조명)용.
+        //    송신 큐는 대기 중 최대 100ms 지연이 있어 명령마다 응답을 기다리면 누적 지연이 커짐.
+        /// <summary>
+        /// 즉시 전송. 송신 큐에 쌓인 명령과 섞이지 않도록 같은 mutex로 보호.
+        /// </summary>
+        /// <returns>전송 성공 여부</returns>
+        public bool WriteNow(byte[] buff)
+        {
+            if (m_sPort == null || !m_sPort.IsOpen)
+                return false;
+
+            m_mutex.WaitOne();
+            try
+            {
+                m_sPort.Write(buff, 0, buff.Length);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return false;
+            }
+            finally
+            {
+                m_mutex.ReleaseMutex();
+            }
+        }
+
         public bool WriteValue(string strMsg, bool bCR = true, bool bLF = true)
         {
             bool bRet = false;
