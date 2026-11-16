@@ -1,4 +1,4 @@
-﻿/*
+﻿﻿/*
  *******************************************************************************
  * 해당 소스는 현장 유지 보수 외에 다른 목적의 사용을 금합니다.
  *******************************************************************************
@@ -7,359 +7,285 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.Ports;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace KeocGrabber_Front
 {
-    class DawooLight
+    //! 다우시스템 50W LED SPOT CONTROLLER. (DLC-050-2-3500-B02, 2CH)  2026/11/16
+    //  - RS-232C, 9600, 8, None, 1.
+    //  - 송신 : 0xFF | Command | Channel | Parameter(1~2) | Checksum
+    //    Checksum = Header ^ Command ^ Channel ^ Parameter.
+    //  - 채널 : ch1 = 0x01, ch2 = 0x02, 전체 = 0x03. (비트 마스크)
+    //  - 밝기 : 0 ~ 3500. (2byte, 상위 바이트 먼저)
+    //  - 모든 명령에 응답이 오며, 1000ms 이상 무응답이면 타임아웃으로 판단.
+    //  - 응답 : 정상 0xFF 0x00 0xFF / 에러 0xFF <에러코드> <Checksum>
+    //           조회 0xFF <Command> <Data...> <Checksum>
+    //  - 컨트롤러가 LOCAL 모드면 모든 명령이 0x80 에러로 거부되므로 REMOTE 모드로 두어야 함.
+    //  - 조명 온도 70도 도달 시 컨트롤러가 출력을 자동 차단하며, ON 명령 재전송으로 복귀.
+    //  - 기존 3채널 다우 컨트롤러용 코드를 DLC-050 사양으로 재작성.
+    class DawooLight : ILightController
     {
-        List<SerialComm> m_listComm = new List<SerialComm>();
+        SerialComm m_comm = new SerialComm();
 
-        public bool this[int index] { get { return (index >= 0 && m_listComm.Count > index) ? m_listComm[index].IsConnected : false; } }
+        public bool IsConnected { get { return m_comm.IsConnected; } }
 
-        public int CtrlCount { get { return m_listComm.Count; } }
+        const byte HEADER       = 0xFF;
+        const byte CMD_DIMMING  = 0x01;
+        const byte CMD_ONOFF    = 0x02;
+        const byte CMD_RD_DIM   = 0x11;
+        const byte CMD_RD_ONOFF = 0x12;
 
-        int m_nRecieveTimeout = 3000;
+        const int MAX_CHANNEL = 2;
+        const byte CH_ALL = 0x03;
+        const int MAX_VALUE = 3500;
 
-        bool[] m_bIsRecv = new bool[4];
+        const int RECV_TIMEOUT = 1000;
 
-        const int MAX_CHANNEL = 3;
-        bool[,] m_bOnoff = new bool[4, MAX_CHANNEL];
-        int[,] m_nLightValue = new int[4, MAX_CHANNEL];
+        bool[] m_bOnoff = new bool[MAX_CHANNEL];
+        int[] m_nLightValue = new int[MAX_CHANNEL];
 
-        List<byte>[] m_bufRecvBuff = new List<byte>[4];
+        List<byte> m_bufRecv = new List<byte>();
+        readonly object m_lockQuery = new object();     // 조회 명령 동시 실행 방지.
+        volatile byte m_nWaitCmd = 0x00;                // 응답 대기 중인 조회 명령.
+        volatile bool m_bQueryError = false;            // 조회 명령에 에러 응답 수신.
 
-        byte m_bReqMode = 0x00;
-
-        public DawooLight()
-        {
-
-        }
-
-        /// <summary>
-        /// DAWOO 조명 컨트롤러 포트 열기.
-        /// 포트 정보는 시스템 파라메터에서 받아옴.
-        /// </summary>
         public void fn_InitPort()
         {
-            bool[] bRet = new bool[4];
-            m_listComm.Add(new SerialComm());
-            m_listComm.Add(new SerialComm());
-            m_listComm.Add(new SerialComm());
-            m_listComm.Add(new SerialComm());
+            bool bRet = m_comm.Open(G.SYSTEM.LightPort, 9600, 8, Parity.None, StopBits.One);
+            m_comm.ReciveDataevent = RecvData;
+            m_bufRecv = new List<byte>();
 
-            bRet[0] = m_listComm[0].Open(G.SYSTEM.LightPort, 9600, 8, Parity.None, StopBits.One);
-            //bRet[1] = m_listComm[1].Open(G.SYSTEM.LightPortTop2, 9600, 8, Parity.None, StopBits.One);
-            //bRet[2] = m_listComm[2].Open(G.SYSTEM.LightPortTop3, 9600, 8, Parity.None, StopBits.One);
-            //bRet[3] = m_listComm[3].Open(G.SYSTEM.LightPortTop4, 9600, 8, Parity.None, StopBits.One);
-
-            m_listComm[0].ReciveDataevent = RecvData1;
-            m_listComm[1].ReciveDataevent = RecvData2;
-            m_listComm[2].ReciveDataevent = RecvData3;
-            m_listComm[3].ReciveDataevent = RecvData4;
-
-            m_bIsRecv[0] = m_bIsRecv[1] = m_bIsRecv[2] = m_bIsRecv[3] = false;
-
-            m_bufRecvBuff[0] = new List<byte>();
-            m_bufRecvBuff[1] = new List<byte>();
-            m_bufRecvBuff[2] = new List<byte>();
-            m_bufRecvBuff[3] = new List<byte>();
-
-            for (int i = 0; i < m_listComm.Count; i++)
-            {
-                G.WriteLog($"Light Controller Open {(bRet[i] ? "Succ." : "Fail.")}. Bot {i + 1} : {m_listComm[i].ConnPort}");
-            }
+            G.WriteLog($"Light Controller(DAWOO) Open {(bRet ? "Succ." : "Fail.")}. [{m_comm.ConnPort}]");
         }
 
-        /// <summary>
-        /// DAWOO 조명 컨트롤러 포트 해제.
-        /// </summary>
         public void fn_FinalPort()
         {
-            bool bRet = false;
-            for (int i = 0; i < m_listComm.Count; i++)
-            {
-                bRet = m_listComm[i].Close();
-                G.WriteLog($"Light Controller Open {(bRet ? "Succ." : "Fail.")}. [{m_listComm[i].ConnPort}]");
-            }
-            m_listComm.Clear();
+            bool bRet = m_comm.Close();
+            m_comm.ReciveDataevent = null;
+            G.WriteLog($"Light Controller(DAWOO) Close {(bRet ? "Succ." : "Fail.")}. [{m_comm.ConnPort}]");
         }
 
         /// <summary>
-        /// DAWOO Light 값 변경
+        /// 채널 번호를 컨트롤러 채널 코드로 변환.
         /// </summary>
-        /// <param name="idx">컨트롤러 인덱스 [0~3]</param>
-        /// <param name="value">컨트롤러 전체 채널 조명 값 [0~255]</param>
-        public void SetLightValue(int idx, int value)
+        /// <param name="ch">0 : 전체, 1~2 : 채널</param>
+        /// <returns>채널 코드. 지원하지 않는 채널이면 0.</returns>
+        private static byte fn_ChannelCode(int ch)
         {
-            if (m_listComm.Count > idx && idx >= 0)
-            {
-                byte[] strcmd = new byte[6];
-                strcmd[0] = 0xff;
-                strcmd[1] = 0x01;        // Light Value Cmd
-                strcmd[2] = 0x07;        // channel
-                strcmd[3] = (byte)(value >> 8);        // Param
-                strcmd[4] = (byte)(value & 0xff); // Light Value
-                strcmd[5] = (byte)(strcmd[0] ^ strcmd[1] ^ strcmd[2] ^ strcmd[3] ^ strcmd[4]);
-                m_listComm[idx].WriteValue(strcmd, false, false);
-                G.WriteLog($"Dawoo {idx + 1} Set : {value}");
-            }
+            if (ch == 0) return CH_ALL;
+            if (ch >= 1 && ch <= MAX_CHANNEL) return (byte)(1 << (ch - 1));
+            return 0;
         }
 
-        public int? GetLightValue(int idx, int ch)
+        /// <summary>
+        /// Header와 Checksum을 붙여 명령 전송.
+        /// </summary>
+        private bool fn_Send(string strDesc, params byte[] body)
         {
-            int? value = null;
-            if (m_listComm.Count > idx && idx >= 0)
+            byte[] buff = new byte[body.Length + 2];
+            buff[0] = HEADER;
+            byte chk = HEADER;
+            for (int i = 0; i < body.Length; i++)
             {
-                if (!m_listComm[idx].IsConnected)
-                    return null;
-                byte[] strcmd = new byte[3];
-                strcmd[0] = 0xff;
-                strcmd[1] = 0x11;        // Read Cmd
-                strcmd[2] = 0xee;        // channel
-                m_bIsRecv[idx] = false;
-                m_bReqMode = strcmd[1];
-
-                m_listComm[idx].WriteValue(strcmd);
-                if (fn_CheckTimeOut(idx) == -1)
-                {
-                    G.WriteLog($"Dawoo {idx + 1} Time-Out");
-                }
-                else
-                {
-                    value = m_nLightValue[idx, ch];
-                    G.WriteLog($"Dawoo {idx + 1} / {ch} Get : {value}");
-                }
-
+                buff[i + 1] = body[i];
+                chk ^= body[i];
             }
-            return value;
-        }
+            buff[buff.Length - 1] = chk;
 
-        public bool GetLightOnOff(int idx)
-        {
-            bool bRet = true;
-            if (m_listComm.Count > idx && idx >= 0)
-            {
-                if (!m_listComm[idx].IsConnected)
-                    return false;
-
-                byte[] strcmd = new byte[3];
-                strcmd[0] = 0xff;
-                strcmd[1] = 0x12;        // Read OnOff Cmd
-                strcmd[2] = 0xed;        // channel
-                m_bIsRecv[idx] = false;
-                m_bReqMode = strcmd[1];
-
-                m_listComm[idx].WriteValue(strcmd);
-                if (fn_CheckTimeOut(idx) == -1)
-                {
-                    G.WriteLog($"Dawoo {idx + 1} Time-Out");
-                    bRet = false;
-                }
-            }
+            bool bRet = m_comm.WriteValue(buff, false, false);
+            if (!bRet)
+                G.WriteLog($"DAWOO {strDesc} 전송 실패. 조명 컨트롤러 통신 확인 필요. [{m_comm.ConnPort}]", true);
             return bRet;
         }
 
-
         /// <summary>
-        /// DAWOO Light On
+        /// 밝기 설정.
         /// </summary>
-        /// <param name="idx">컨트롤러 인덱스 [0~3]</param>
-        public void LightOn(int idx)
+        /// <param name="ch">0 : 전체, 1~2 : 채널. 그 외 채널은 무시.</param>
+        /// <param name="value">밝기 [0~3500]. 범위를 벗어나면 경계값으로 제한.</param>
+        public void SetLightValue(int ch, int value)
         {
-            if (m_listComm.Count > idx && idx >= 0)
-            {
-                byte[] strcmd = new byte[5];
-                strcmd[0] = 0xff;
-                strcmd[1] = 0x02; // On/Off Cmd
-                strcmd[2] = 0x07; // All Channel
-                strcmd[3] = 0x01; // Light On
-                strcmd[4] = (byte)(strcmd[0] ^ strcmd[1] ^ strcmd[2] ^ strcmd[3]);
-                m_listComm[idx].WriteValue(strcmd, false, false);
-                G.WriteLog($"Dawoo {idx + 1} Light ON");
-            }
+            // 레시피의 3, 4채널 등 컨트롤러에 없는 채널은 무시.
+            byte code = fn_ChannelCode(ch);
+            if (code == 0)
+                return;
+
+            int nValue = Math.Max(0, Math.Min(MAX_VALUE, value));
+            if (nValue != value)
+                G.WriteLog($"DAWOO 밝기 범위 초과. [{value}] → {nValue} (0~{MAX_VALUE})");
+
+            if (fn_Send("Set", CMD_DIMMING, code, (byte)(nValue >> 8), (byte)(nValue & 0xFF)))
+                G.WriteLog($"DAWOO Set : {(ch == 0 ? "All" : ch.ToString())} ch, {nValue}");
+        }
+
+        public void LightOn(int ch)
+        {
+            byte code = fn_ChannelCode(ch);
+            if (code == 0)
+                return;
+            if (fn_Send("Light ON", CMD_ONOFF, code, 0x01))
+                G.WriteLog($"DAWOO {(ch == 0 ? "All" : ch.ToString())} ch Light ON");
+        }
+
+        public void LightOff(int ch)
+        {
+            byte code = fn_ChannelCode(ch);
+            if (code == 0)
+                return;
+            if (fn_Send("Light OFF", CMD_ONOFF, code, 0x00))
+                G.WriteLog($"DAWOO {(ch == 0 ? "All" : ch.ToString())} ch Light OFF");
         }
 
         /// <summary>
-        /// DAWOO Light Off
+        /// 조회 명령 전송 후 응답 대기.
         /// </summary>
-        /// <param name="idx">컨트롤러 인덱스 [0~3]</param>
-        public void LightOff(int idx)
+        /// <returns>응답 수신 여부.</returns>
+        private bool fn_Query(byte cmd)
         {
-            if (m_listComm.Count > idx && idx >= 0)
-            {
-                byte[] strcmd = new byte[5];
-                strcmd[0] = 0xff;
-                strcmd[1] = 0x02; // On/Off Cmd
-                strcmd[2] = 0x07; // All Channel
-                strcmd[3] = 0x00; // Light Off
-                strcmd[4] = (byte)(strcmd[0] ^ strcmd[1] ^ strcmd[2] ^ strcmd[3]);
-                m_listComm[idx].WriteValue(strcmd, false, false);
-                G.WriteLog($"Dawoo {idx + 1} Light OFF");
-            }
-        }
+            if (!m_comm.IsConnected)
+                return false;
 
-        /// <summary>
-        /// Get 함수 사용 시 데이터 수신 확인 함수.
-        /// </summary>
-        /// <param name="idx">컨트롤러 인덱스</param>
-        /// <returns>성공시 0, 타임아웃 발생시 -1</returns>
-        private int fn_CheckTimeOut(int idx)
-        {
-            int nState = 0;
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
-            while (!m_bIsRecv[idx])
+            lock (m_lockQuery)
             {
-                Thread.Sleep(50);
-                if (sw.ElapsedMilliseconds > m_nRecieveTimeout)
+                m_bQueryError = false;
+                m_nWaitCmd = cmd;
+                if (!fn_Send($"Read(0x{cmd:X2})", cmd))
                 {
-                    nState = -1; // time-out
-                    break;
-                }
-            }
-
-            return nState;
-        }
-
-        /// <summary>
-        /// 데이터 프로토콜 분석기
-        /// </summary>
-        /// <param name="index">컨트롤러 인덱스</param>
-        /// <param name="buff">확인할 버퍼 데이터</param>
-        /// <returns></returns>
-        private int CheckData(int index, byte[] buff)
-        {
-            int nRet = -1;
-
-            switch (m_bReqMode)
-            {
-                case 0x11: // Dimming값 읽기
-                    //m_nLightValue[index, 0] = (buff[1] << 8) | buff[2];
-                    //m_nLightValue[index, 1] = (buff[3] << 8) | buff[4];
-                    //m_nLightValue[index, 2] = (buff[5] << 8) | buff[6];
-                    m_nLightValue[index, 0] = buff[2];
-                    m_nLightValue[index, 1] = buff[4];
-                    m_nLightValue[index, 2] = buff[6];
-                    m_bReqMode = 0x00;
-                    nRet = 1;
-                    break;
-                case 0x12: // 광원 ON/OFF 상태 읽기
-                    
-                    m_bOnoff[index, 0] = (buff[2] & 0x01) == 0x01;
-                    m_bOnoff[index, 1] = (buff[2] & 0x02) == 0x02;
-                    m_bOnoff[index, 2] = (buff[2] & 0x04) == 0x04;
-
-                    m_bReqMode = 0x00;
-                    nRet = 1;
-                    break;
-            }
-
-            return nRet;
-        }
-
-        /// <summary>
-        /// 컨트롤러 1번 콜백.
-        /// </summary>
-        /// <param name="buff">수신 데이터</param>
-        private void RecvData1(byte[] buff)
-        {
-            // Append Data
-            const int INDEX = 0;
-            Dataparsing(INDEX, buff);
-        }
-
-        /// <summary>
-        /// 컨트롤러 2번 콜백.
-        /// </summary>
-        /// <param name="buff">수신 데이터</param>
-        private void RecvData2(byte[] buff)
-        {
-            // Append Data
-            const int INDEX = 1;
-            Dataparsing(INDEX, buff);
-        }
-
-        /// <summary>
-        /// 컨트롤러 3번 콜백.
-        /// </summary>
-        /// <param name="buff">수신 데이터</param>
-        private void RecvData3(byte[] buff)
-        {
-            // Append Data
-            const int INDEX = 2;
-            Dataparsing(INDEX, buff);
-        }
-
-        /// <summary>
-        /// 컨트롤러 4번 콜백.
-        /// </summary>
-        /// <param name="buff">수신 데이터</param>
-        private void RecvData4(byte[] buff)
-        {
-            // Append Data
-            const int INDEX = 3;
-            Dataparsing(INDEX, buff);
-        }
-
-        private void Dataparsing(int index, byte[] buff)
-        {
-
-            //0x11 9byte.
-            //0x12 4byte.
-            // 1. 버퍼 누적.
-            m_bufRecvBuff[index].AddRange(buff);
-
-            List<byte> data;
-
-            // 2. 누적된 버퍼에서 요청한 모드에 대한 응담 체크. (0x11, 0x12)
-            int idx = SerialComm.IndexOfByteArray(m_bufRecvBuff[index], m_bReqMode);
-            if (idx > -1)
-            {
-                int nCheckCount = 0;
-                switch (m_bReqMode)
-                {
-                    case 0x11: nCheckCount = 9; break;
-                    case 0x12: nCheckCount = 4; break;
+                    m_nWaitCmd = 0x00;
+                    return false;
                 }
 
-                // 2-2. 응답이 있다면 각 모드에 대한 길이 체크. idx-1에 0xff여부 및 길이 체크.
-                if (nCheckCount > 0 && m_bufRecvBuff[index][idx - 1] == 0xff && m_bufRecvBuff[index].Count > (idx - 1 + nCheckCount))
+                // 전송 스레드 대기 시간을 고려하여 응답 시간에 여유를 둠.
+                Stopwatch sw = Stopwatch.StartNew();
+                while (m_nWaitCmd != 0x00)
                 {
-                    // 조건이 만족하면 데이터 파싱.
-                    data = SerialComm.SubBytes(m_bufRecvBuff[index], idx - 1, nCheckCount);
-                    m_bufRecvBuff[index] = SerialComm.RemoveBytes(m_bufRecvBuff[index], idx - 1, nCheckCount);
-
-                    // Check Protocall
-                    if (CheckData(index, data.ToArray()) > 0)
+                    Thread.Sleep(20);
+                    if (sw.ElapsedMilliseconds > RECV_TIMEOUT + 500)
                     {
-                        m_bIsRecv[index] = true;
+                        m_nWaitCmd = 0x00;
+                        G.WriteLog($"DAWOO Time-Out. [Read 0x{cmd:X2}]", true);
+                        return false;
                     }
                 }
+                return !m_bQueryError;
             }
-            else
-                return;
-            // 2-1. 응답이 없다면 리턴.
         }
 
-        public bool IsLightOn(int idx)
+        /// <summary>
+        /// 밝기 조회.
+        /// </summary>
+        /// <param name="ch">0 : 1채널 값, 1~2 : 채널</param>
+        public int? GetLightValue(int ch)
         {
-            bool bRet = true;
-            if (idx > -1 && idx < CtrlCount)
+            int nIdx = ch == 0 ? 0 : ch - 1;
+            if (nIdx < 0 || nIdx >= MAX_CHANNEL)
+                return null;
+            if (!fn_Query(CMD_RD_DIM))
+                return null;
+
+            G.WriteLog($"DAWOO Get : ch1 {m_nLightValue[0]}, ch2 {m_nLightValue[1]}");
+            return m_nLightValue[nIdx];
+        }
+
+        public bool GetLightOnOff()
+        {
+            return fn_Query(CMD_RD_ONOFF);
+        }
+
+        public bool IsLightOn(int ch)
+        {
+            if (ch == 0)
+                return m_bOnoff[0] && m_bOnoff[1];
+            if (ch >= 1 && ch <= MAX_CHANNEL)
+                return m_bOnoff[ch - 1];
+            return false;
+        }
+
+        /// <summary>
+        /// 응답 길이. (Header, Checksum 포함) 알 수 없는 응답이면 0.
+        /// </summary>
+        private static int fn_FrameLength(byte second)
+        {
+            switch (second)
             {
-                for (int i = 0; i < MAX_CHANNEL; i++)
-                {
-                    bRet &= m_bOnoff[idx, i];
-                }
+                case CMD_RD_DIM:   return 7;    // FF 11 ch1H ch1L ch2H ch2L chk
+                case CMD_RD_ONOFF: return 4;    // FF 12 data chk
             }
-            else
+            if (second == 0x00 || (second >= 0x80 && second <= 0x85))
+                return 3;                       // FF 상태 chk
+            return 0;
+        }
+
+        private static string fn_ErrorText(byte code)
+        {
+            switch (code)
             {
-                bRet = false;
+                case 0x80: return "LOCAL MODE (컨트롤러를 REMOTE 모드로 전환 필요)";
+                case 0x81: return "channel error";
+                case 0x82: return "command error";
+                case 0x83: return "parameter error";
+                case 0x84: return "checksum error";
+                case 0x85: return "over time error";
             }
-            return bRet;
+            return "unknown";
+        }
+
+        private void RecvData(byte[] buff)
+        {
+            m_bufRecv.AddRange(buff);
+
+            while (m_bufRecv.Count > 0)
+            {
+                // Header까지 앞부분 버림.
+                int nHead = m_bufRecv.IndexOf(HEADER);
+                if (nHead < 0) { m_bufRecv.Clear(); return; }
+                if (nHead > 0) m_bufRecv.RemoveRange(0, nHead);
+                if (m_bufRecv.Count < 2) return;
+
+                int nLen = fn_FrameLength(m_bufRecv[1]);
+                if (nLen == 0) { m_bufRecv.RemoveAt(0); continue; }
+                if (m_bufRecv.Count < nLen) return;
+
+                // Checksum 확인. 맞지 않으면 1byte 밀어서 다시 동기화.
+                byte chk = 0x00;
+                for (int i = 0; i < nLen - 1; i++)
+                    chk ^= m_bufRecv[i];
+                if (chk != m_bufRecv[nLen - 1]) { m_bufRecv.RemoveAt(0); continue; }
+
+                byte[] frame = m_bufRecv.GetRange(0, nLen).ToArray();
+                m_bufRecv.RemoveRange(0, nLen);
+                fn_ParseFrame(frame);
+            }
+        }
+
+        private void fn_ParseFrame(byte[] frame)
+        {
+            byte second = frame[1];
+            switch (second)
+            {
+                case 0x00:
+                    break;  // 정상 수신.
+                case CMD_RD_DIM:
+                    m_nLightValue[0] = (frame[2] << 8) | frame[3];
+                    m_nLightValue[1] = (frame[4] << 8) | frame[5];
+                    break;
+                case CMD_RD_ONOFF:
+                    m_bOnoff[0] = (frame[2] & 0x01) != 0;
+                    m_bOnoff[1] = (frame[2] & 0x02) != 0;
+                    break;
+                default:
+                    // 에러 응답. 조회 중이었다면 대기 해제.
+                    G.WriteLog($"DAWOO Error Response. [0x{second:X2} {fn_ErrorText(second)}]", true);
+                    if (m_nWaitCmd != 0x00)
+                    {
+                        m_bQueryError = true;
+                        m_nWaitCmd = 0x00;
+                    }
+                    return;
+            }
+
+            if (second == m_nWaitCmd)
+                m_nWaitCmd = 0x00;
         }
     }
 }

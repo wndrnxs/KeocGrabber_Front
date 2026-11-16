@@ -8,8 +8,8 @@
 
 - C# / WPF, .NET Framework 4.7.2 (WinExe)
 - 프레임그래버: Matrox Imaging Library — Coaxlink 보드
-- 카메라: Vieworks 라인스캔 카메라 (GenICam SDK가 아닌 전용 시리얼 ASCII 커맨드로 직접 제어)
-- 조명 컨트롤러: PLS 시리얼 프로토콜
+- 카메라: Vieworks 또는 Teledyne DALSA Linea CL 라인스캔 카메라 (시리얼 ASCII 커맨드로 직접 제어, `CameraType`으로 선택)
+- 조명 컨트롤러: PLS 또는 다우시스템 DLC-050 (시리얼, `LightType`으로 선택)
 - 이미지 처리: OpenCvSharp4 4.5.3
 - 통신: TCP/IP(Master 연동, 자체 바이너리 프레임 프로토콜), RS-232(카메라/조명)
 
@@ -77,7 +77,11 @@
 
 ## 조명 제어
 
-`LightManager`가 조명 컨트롤러를 감싸며, 현재 실제로 연결되는 것은 **PLS 컨트롤러**(`PLSLight.cs`, 115200-8-N-1, `*W{ch}{value}$` / `*O{ch}{on/off}$` 형식의 ASCII 명령) 하나뿐입니다. `DawooLight.cs`, `VitLight.cs` 드라이버도 프로젝트에 포함되어 있지만 `LightManager` 내부의 인스턴스화 코드가 모두 주석 처리되어 있어 현재는 미사용 상태입니다.
+`LightManager`가 조명 컨트롤러를 감싸며, `ImageGrabber.xml`의 `LightType`으로 컨트롤러를 고릅니다. 채널 번호는 0이 전체, 1~N이 개별 채널입니다.
+
+- `PLS`(기본): PLS 컨트롤러(`PLSLight.cs`, 115200-8-N-1, `*W{ch}{value}$` / `*O{ch}{on/off}$` 형식의 ASCII 명령).
+- `DAWOO`: 다우시스템 50W LED SPOT 컨트롤러 DLC-050-2-3500-B02(`DawooLight.cs`, 2채널, 9600-8-N-1). `0xFF + CMD + CH + 값 + XOR 체크섬` 바이너리 명령으로 밝기(0~3500)·ON/OFF를 설정하고, 모든 명령의 응답을 확인해 에러 응답(LOCAL 모드, 파라미터 오류 등)과 1초 무응답을 에러 로그로 남깁니다. 레시피의 3·4채널 값은 무시합니다. 컨트롤러는 REMOTE 모드여야 하며, 조명 온도 70도에서 컨트롤러가 출력을 자동 차단합니다(다음 ON 명령으로 복귀).
+- `VitLight.cs`는 프로젝트에 포함되어 있지만 미사용입니다.
 
 ## 이미지 저장
 
@@ -98,7 +102,7 @@
 
 XML 직렬화는 리플렉션 기반 커스텀 시리얼라이저(`XmlManager`)를 사용합니다.
 
-- **시스템 설정**(`SystemParam`, `ImageGrabber.xml`): Master 포트(기본 20000), 이미지/로그 경로 및 확장자, 보관일수, 카메라 종류(`CameraType`), 카메라/조명 COM 포트, DCF 파일, 그랩 높이(기본 32768), 그랩 타임아웃(기본 20000ms), 요청 큐 만료시간(기본 300000ms = 5분), 센서 트리거 후 촬상 지연(`GrabTriggerDelay`, 기본 0ms = 미사용) 등을 담고 있습니다.
+- **시스템 설정**(`SystemParam`, `ImageGrabber.xml`): Master 포트(기본 20000), 이미지/로그 경로 및 확장자, 보관일수, 카메라 종류(`CameraType`), 조명 종류(`LightType`), 카메라/조명 COM 포트, DCF 파일, 그랩 높이(기본 32768), 그랩 타임아웃(기본 20000ms), 요청 큐 만료시간(기본 300000ms = 5분), 센서 트리거 후 촬상 지연(`GrabTriggerDelay`, 기본 0ms = 미사용) 등을 담고 있습니다.
 - **레시피**(`RecipeParam`, 별도 XML 파일, Setup 화면에서 로드/저장): 노출시간, 게인, 조명 채널 1~4 값, 셀 1/2의 크롭 ROI(X, Y, Width, Height)를 담고 있습니다.
 
 ## 화면 구성

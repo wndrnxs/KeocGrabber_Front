@@ -32,6 +32,11 @@ namespace KeocGrabber_Front
         // Devices
         string lightPortTop1 = "COM1";
 
+        //! 조명 컨트롤러 종류.  2026/11/16
+        //  - PLS   : PLS 조명 컨트롤러. (115200 bps)
+        //  - DAWOO : 다우시스템 DLC-050-2-3500-B02. (2CH, 9600 bps)
+        string lightType = "PLS";
+
         string cameraPort1 = "COM9";
 
         string camera1dcf = "cam1.dcf";
@@ -79,6 +84,11 @@ namespace KeocGrabber_Front
         public int MaintenanceDays { get { return maintenanceDays; } set { maintenanceDays = value; } }
 
         public string LightPort { get { return lightPortTop1; } set { lightPortTop1 = value; } }
+
+        /// <summary>
+        /// 조명 컨트롤러 종류. (PLS / DAWOO)
+        /// </summary>
+        public string LightType { get { return lightType; } set { lightType = value; } }
 
         public string CameraPort1 { get { return cameraPort1; } set { cameraPort1 = value; } }
 

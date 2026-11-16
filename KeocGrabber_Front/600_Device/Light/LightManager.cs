@@ -13,9 +13,10 @@ namespace KeocGrabber_Front
 {
     class LightManager
     {
-        //VitLight mc_VitLight = new VitLight();
-        //DawooLight mc_DawooLight = new DawooLight();
-        PLSLight mc_PlsLight = new PLSLight();
+        //! 조명 컨트롤러는 시스템 파라메터(LightType)에 따라 fn_Init에서 생성.  2026/11/16
+        //  - 시스템 파라메터 로드 전에 생성되는 객체이므로 생성자에서 만들지 않음.
+        //  - 채널 번호는 0 : 전체, 1~N : 개별 채널.
+        ILightController m_light = null;
 
         public LightManager()
         {
@@ -24,146 +25,70 @@ namespace KeocGrabber_Front
 
         public bool fn_IsConnected()
         {
-            return mc_PlsLight.IsConnected;
+            return m_light?.IsConnected == true;
         }
 
         public void fn_Init()
         {
-            //mc_VitLight.fn_InitPort();
-            //mc_DawooLight.fn_InitPort();
-            mc_PlsLight.fn_InitPort();
+            switch ((G.SYSTEM.LightType ?? "").Trim().ToUpper())
+            {
+                case "DAWOO":
+                    m_light = new DawooLight();
+                    break;
+                case "PLS":
+                    m_light = new PLSLight();
+                    break;
+                default:
+                    G.WriteLog($"알 수 없는 LightType. [{G.SYSTEM.LightType}] PLS로 동작.", true);
+                    m_light = new PLSLight();
+                    break;
+            }
+            m_light.fn_InitPort();
         }
 
         public void fn_Final()
         {
-            //mc_VitLight.fn_FinalPort();
-            //mc_DawooLight.fn_FinalPort();
-            mc_PlsLight.fn_FinalPort();
+            m_light?.fn_FinalPort();
         }
 
         public void fn_LightOnAll()
         {
-            //for (int i = 0; i < mc_DawooLight.CtrlCount; i++)
-            //{
-            //    mc_DawooLight.LightOn(i);
-            //}
-            //mc_VitLight.LightOn(-1);
-            mc_PlsLight.LightOn(0);
+            m_light?.LightOn(0);
         }
 
         public void fn_LightOffAll()
         {
-            //for (int i = 0; i < mc_DawooLight.CtrlCount; i++)
-            //{
-            //    mc_DawooLight.LightOff(i);
-            //}
-            //mc_VitLight.LightOff(-1);
-            mc_PlsLight.LightOff(0);
+            m_light?.LightOff(0);
         }
 
         public void fn_LightOn(int idx)
         {
-            mc_PlsLight.LightOn(idx);
-            //if (idx >= 0 && idx < Define.LIGHT_CTRL_CH_COUNT)
-            //{
-            //    if (idx < mc_DawooLight.CtrlCount)
-            //    {
-            //        mc_DawooLight.LightOn(idx);
-            //    }
-            //    else
-            //    {
-            //        mc_VitLight.LightOn(idx - mc_DawooLight.CtrlCount);
-            //    }
-            //}
+            m_light?.LightOn(idx);
         }
 
         public void fn_LightOff(int idx)
         {
-            mc_PlsLight.LightOff(idx);
-            //if (idx >= 0 && idx < Define.LIGHT_CTRL_CH_COUNT)
-            //{
-            //    if (idx < mc_DawooLight.CtrlCount)
-            //    {
-            //        mc_DawooLight.LightOff(idx);
-            //    }
-            //    else
-            //    {
-            //        mc_VitLight.LightOff(idx - mc_DawooLight.CtrlCount);
-            //    }
-            //}
+            m_light?.LightOff(idx);
         }
 
         public void fn_SetLightValue(int idx, int value)
         {
-            mc_PlsLight.SetLightValue(idx, value);
-            //if (idx >= 0 && idx < Define.LIGHT_CTRL_CH_COUNT)
-            //{
-            //    if (idx < mc_DawooLight.CtrlCount)
-            //    {
-            //        mc_DawooLight.SetLightValue(idx, value);
-            //    }
-            //    else
-            //    {
-            //        mc_VitLight.SetLightValue(idx - mc_DawooLight.CtrlCount + 1, value);
-            //    }
-            //}
+            m_light?.SetLightValue(idx, value);
         }
 
         public int? fn_GetLightValue(int idx)
         {
-            int? nRtn = 0;
-            nRtn = mc_PlsLight.GetLightValue(idx);
-            //if (idx >= 0 && idx < Define.LIGHT_CTRL_CH_COUNT)
-            //{
-            //    if (idx < mc_DawooLight.CtrlCount)
-            //    {
-            //        nRtn = mc_DawooLight.GetLightValue(idx, 0);
-            //    }
-            //    else
-            //    {
-            //        nRtn = mc_VitLight.GetLightValue(idx - mc_DawooLight.CtrlCount + 1);
-            //    }
-            //}
-
-            return nRtn;
+            return m_light?.GetLightValue(idx);
         }
 
         public bool fn_IsLightOn(int idx)
         {
-            bool bRet = false;
-            bRet = mc_PlsLight.IsLightOn(idx);
-            //if (idx >= 0 && idx < Define.LIGHT_CTRL_CH_COUNT)
-            //{
-            //    if (idx < mc_DawooLight.CtrlCount)
-            //    {
-            //        bRet = mc_DawooLight.IsLightOn(idx);
-            //    }
-            //    else
-            //    {
-            //        bRet = mc_VitLight.IsLightOn(idx - mc_DawooLight.CtrlCount);
-            //    }
-            //}
-
-            return bRet;
+            return m_light?.IsLightOn(idx) == true;
         }
 
         public bool fn_GetOnOff(int idx)
         {
-            bool bRet = false;
-            bRet = mc_PlsLight.GetLightOnOff();
-            //if (idx >= 0 && idx < Define.LIGHT_CTRL_CH_COUNT)
-            //{
-            //    if (idx < mc_DawooLight.CtrlCount)
-            //    {
-            //        mc_DawooLight.GetLightOnOff(idx);
-            //    }
-            //    else
-            //    {
-            //        mc_VitLight.GetLightOnOff();
-            //    }
-            //}
-
-            return bRet;
+            return m_light?.GetLightOnOff() == true;
         }
     }
 }

@@ -214,6 +214,7 @@
     <Compile Include="600_Device\Camera\MatroxGrabber.cs" />
     <Compile Include="600_Device\Camera\VieworksCamera.cs" />
     <Compile Include="600_Device\Light\DawooLight.cs" />
+    <Compile Include="600_Device\Light\ILightController.cs" />
     <Compile Include="600_Device\Light\LightManager.cs" />
     <Compile Include="600_Device\Light\VitLight.cs" />
     <Compile Include="600_Device\Light\PlsLight.cs" />

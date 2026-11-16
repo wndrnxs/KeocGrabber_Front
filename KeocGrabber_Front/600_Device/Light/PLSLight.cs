@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace KeocGrabber_Front
 {
-    internal class PLSLight
+    internal class PLSLight : ILightController
     {
         SerialComm serialComm = new SerialComm();
 
