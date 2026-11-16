@@ -33,7 +33,7 @@ namespace KeocGrabber_Front
         //static public 
         static public GrabberManager GRABBER = new GrabberManager();
         static public LightManager LIGHT = new LightManager();
-        static public VieworksCamera[] CAMERA = new VieworksCamera[Define.CAM_COUNT];
+        static public ILineCamera[] CAMERA = new ILineCamera[Define.CAM_COUNT];
 
         static public ProtocallManager COMM = new ProtocallManager();
         static public ImageManager IMAGEMANAGER = new ImageManager();
@@ -158,7 +158,7 @@ namespace KeocGrabber_Front
 
             for (int i = 0; i < Define.CAM_COUNT; i++)
             {
-                CAMERA[i] = new VieworksCamera();
+                CAMERA[i] = fn_CreateCamera(G.SYSTEM.CameraType);
             }
             
             CAMERA[0].fn_Init(G.SYSTEM.CameraPort1);
@@ -303,6 +303,21 @@ namespace KeocGrabber_Front
             }
         }
         #endregion
+
+        //! 시스템 파라메터의 카메라 종류에 맞는 카메라 객체 생성.  2026/11/16
+        static private ILineCamera fn_CreateCamera(string type)
+        {
+            switch ((type ?? "").Trim().ToUpper())
+            {
+                case "DALSA":
+                    return new DalsaLineaCamera();
+                case "VIEWORKS":
+                    return new VieworksCamera();
+                default:
+                    G.WriteLog($"알 수 없는 CameraType. [{type}] VIEWORKS로 동작.", true);
+                    return new VieworksCamera();
+            }
+        }
 
         static public void SetCurrRecipe()
         {

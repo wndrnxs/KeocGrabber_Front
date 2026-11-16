@@ -36,6 +36,11 @@ namespace KeocGrabber_Front
 
         string camera1dcf = "cam1.dcf";
 
+        //! 라인스캔 카메라 종류.  2026/11/16
+        //  - VIEWORKS : Vieworks 라인스캔 카메라. (115200 bps)
+        //  - DALSA    : Teledyne DALSA Linea CL. (LA-CM-04K08A-00-R, 9600 bps)
+        string cameraType = "VIEWORKS";
+
         int grabHeight = 32768;
 
         //! 조명 자동 OFF 감시 시간.  2026/07/27
@@ -78,6 +83,11 @@ namespace KeocGrabber_Front
         public string CameraPort1 { get { return cameraPort1; } set { cameraPort1 = value; } }
 
         public string Camera1DCF { get { return camera1dcf; } set { camera1dcf = value; } }
+
+        /// <summary>
+        /// 라인스캔 카메라 종류. (VIEWORKS / DALSA)
+        /// </summary>
+        public string CameraType { get { return cameraType; } set { cameraType = value; } }
 
         public int GrabHeight { get { return grabHeight; } set { grabHeight = value; } }
 

@@ -208,7 +208,9 @@
     <Compile Include="400_SubPage\Win_Vieworks.xaml.cs">
       <DependentUpon>Win_Vieworks.xaml</DependentUpon>
     </Compile>
+    <Compile Include="600_Device\Camera\DalsaLineaCamera.cs" />
     <Compile Include="600_Device\Camera\GrabberManager.cs" />
+    <Compile Include="600_Device\Camera\ILineCamera.cs" />
     <Compile Include="600_Device\Camera\MatroxGrabber.cs" />
     <Compile Include="600_Device\Camera\VieworksCamera.cs" />
     <Compile Include="600_Device\Light\DawooLight.cs" />

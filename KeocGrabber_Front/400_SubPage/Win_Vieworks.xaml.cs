@@ -177,13 +177,17 @@ namespace KeocGrabber_Front
 
         private void bn_Apply_Click(object sender, RoutedEventArgs e)
         {
-            task1 = Task.Run(() => { fn_SetParameter(G.CAMERA[datacontext.SelectedIndex]); });
+            VieworksCamera cam = G.CAMERA[datacontext.SelectedIndex] as VieworksCamera;
+            if (cam == null) return;
+            task1 = Task.Run(() => { fn_SetParameter(cam); });
         }
 
         private void bn_Update_Click(object sender, RoutedEventArgs e)
         {
             datacontext.IsConnected = G.CAMERA[datacontext.SelectedIndex].IsConnected;
-            task2 = Task.Run(() => { fn_GetParameter(G.CAMERA[datacontext.SelectedIndex]); });
+            VieworksCamera cam = G.CAMERA[datacontext.SelectedIndex] as VieworksCamera;
+            if (cam == null) return;
+            task2 = Task.Run(() => { fn_GetParameter(cam); });
         }
 
         private bool WriteLog(string strmsg)

@@ -284,6 +284,12 @@ namespace KeocGrabber_Front
 
         private void bn_CamConfig_Click(object sender, RoutedEventArgs e)
         {
+            //! Vieworks 전용 설정 창. 다른 카메라는 열지 않음.  2026/11/16
+            if (!(G.CAMERA[datacontext.CamIndex] is VieworksCamera))
+            {
+                G.WriteLog($"카메라 상세 설정 창은 Vieworks 카메라 전용. [{G.SYSTEM.CameraType}]", true);
+                return;
+            }
             Win_Vieworks cam = new Win_Vieworks();
             cam.Owner = Application.Current.MainWindow;
             cam.Show();

@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace KeocGrabber_Front
 {
-    class VieworksCamera
+    class VieworksCamera : ILineCamera
     {
         Func<string, bool> delWriteLog = null;
         public Func<string, bool> WriteLog { set { delWriteLog = value; } }

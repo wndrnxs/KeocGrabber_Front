@@ -1,4 +1,4 @@
-> 해당 소스는 현장 유지보수 목적 외 사용을 금합니다.
+﻿> 해당 소스는 현장 유지보수 목적 외 사용을 금합니다.
 
 # KeocGrabber_Front — 정면 시야각(Front Angle View) 이미지 그랩 시스템
 
@@ -69,6 +69,9 @@
 
 - **프레임그래버**: Matrox Coaxlink(MIL). `GrabberManager` → `MatroxGrabber`가 DCF 파일(`SYSTEM.Camera1DCF`)로 보드를 초기화합니다. 라인스캔 특성상 여러 청크로 나눠 그랩한 뒤 `ImageManager`에서 이어붙입니다.
 - **카메라**: Vieworks 라인스캔 카메라를 RS-232 ASCII 커맨드(115200-8-N-1)로 제어합니다(`VieworksCamera.cs`). 노출시간·게인·트리거 모드·데이터 비트 등을 `s**`/`g**` 커맨드 쌍으로 설정·조회합니다.
+- **카메라 선택**: `ImageGrabber.xml`의 `CameraType`으로 고릅니다. `VIEWORKS`(기본) 또는 `DALSA`.
+  - `DALSA`: Teledyne DALSA Linea CL(LA-CM-04K08A-00-R)을 Camera Link 시리얼 ASCII 명령(9600-8-N-1)으로 제어합니다(`DalsaLineaCamera.cs`). 시작 시 ESC를 보내 ASCII 모드로 전환하고, 노출(`set`, ns)·게인(`ssg 0 f<gain>`, 1~10배)을 설정하며 조회는 `gcp` 출력을 파싱합니다. 레시피 노출 값은 카메라와 무관하게 us 단위입니다.
+  - Setup 화면의 카메라 상세 설정 창(Win_Vieworks)은 Vieworks 전용입니다.
 - **동시 카메라 수**: 1대(`Define.CAM_COUNT = 1`)로 고정되어 있습니다. 코드에는 4채널 구조가 남아 있지만 2~4번 카메라 관련 로직은 모두 주석 처리된 상태입니다.
 - **그랩 타임아웃 워치독**(`Global.cs`): 설정된 시간(기본 20000ms) 경과 시 강제 종료합니다. 락(lock) 내부에서는 상태 전이만 처리하고, 조명 OFF·그랩 정지 같은 실제 장비 제어는 락 밖에서 수행합니다 — 그랩 정지 호출이 진행 중인 그랩 콜백의 종료를 기다리는 동안, 그 콜백이 같은 락을 기다리며 서로 교착되는 문제를 피하기 위한 구조입니다.
 
@@ -95,7 +98,7 @@
 
 XML 직렬화는 리플렉션 기반 커스텀 시리얼라이저(`XmlManager`)를 사용합니다.
 
-- **시스템 설정**(`SystemParam`, `ImageGrabber.xml`): Master 포트(기본 20000), 이미지/로그 경로 및 확장자, 보관일수, 카메라/조명 COM 포트, DCF 파일, 그랩 높이(기본 32768), 그랩 타임아웃(기본 20000ms), 요청 큐 만료시간(기본 300000ms = 5분), 센서 트리거 후 촬상 지연(`GrabTriggerDelay`, 기본 0ms = 미사용) 등을 담고 있습니다.
+- **시스템 설정**(`SystemParam`, `ImageGrabber.xml`): Master 포트(기본 20000), 이미지/로그 경로 및 확장자, 보관일수, 카메라 종류(`CameraType`), 카메라/조명 COM 포트, DCF 파일, 그랩 높이(기본 32768), 그랩 타임아웃(기본 20000ms), 요청 큐 만료시간(기본 300000ms = 5분), 센서 트리거 후 촬상 지연(`GrabTriggerDelay`, 기본 0ms = 미사용) 등을 담고 있습니다.
 - **레시피**(`RecipeParam`, 별도 XML 파일, Setup 화면에서 로드/저장): 노출시간, 게인, 조명 채널 1~4 값, 셀 1/2의 크롭 ROI(X, Y, Width, Height)를 담고 있습니다.
 
 ## 화면 구성
