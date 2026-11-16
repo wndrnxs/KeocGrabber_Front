@@ -57,6 +57,8 @@ namespace KeocGrabber_Front
         volatile bool m_bRecordRaw = false;
         const int RAW_LOG_MAX = 300;
 
+        static readonly Regex RX_ERROR = new Regex(@"\berror\b|\b0x[0-9a-f]{4}\b", RegexOptions.IgnoreCase);
+
         public void fn_Init(string comport)
         {
             bool bRet = m_comm.Open(comport, BAUDRATE, 8, Parity.None, StopBits.One);
@@ -155,8 +157,8 @@ namespace KeocGrabber_Front
                 m_strRecvBuff = m_strRecvBuff.Remove(0, idx + PROMPT.Length);
 
                 // 에러 응답 기록. (에러 코드는 GenICam과 동일. 예: 0x8002 Invalid Parameter)
-                if (strResp.IndexOf("rror", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    strResp.IndexOf("0x", StringComparison.OrdinalIgnoreCase) >= 0)
+                // gcp 출력의 "Mirror" 등이 오탐되지 않도록 단어 단위 "Error"와 4자리 16진 코드만 판별.
+                if (RX_ERROR.IsMatch(strResp))
                 {
                     G.WriteLog($"Dalsa Linea Error Response. [{strResp.Trim()}]", true);
                 }
