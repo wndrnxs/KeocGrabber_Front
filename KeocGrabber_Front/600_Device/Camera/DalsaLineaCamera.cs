@@ -40,6 +40,10 @@ namespace KeocGrabber_Front
         const float GAIN_MIN = 1.0f;
         const float GAIN_MAX = 10.0f;
 
+        const int ESC_TIMEOUT = 2000;               // ESC 후 프롬프트 대기 시간.
+        const int ESC_SETTLE_TIME = 300;            // 프롬프트 수신 후 다음 명령까지 대기 시간.
+        const int GCP_RETRY = 3;                    // ASCII 모드 확인 gcp 재시도 횟수.
+
         int m_nRecieveTimeout = 5000;               // gcp 출력이 길어 9600bps에서 1초 이상 걸림.
 
         readonly object m_lockCmd = new object();   // 조회 명령 동시 실행 방지.
@@ -78,12 +82,23 @@ namespace KeocGrabber_Front
         {
             lock (m_sbRaw) m_sbRaw.Clear();
             m_bRecordRaw = true;
-            m_comm.WriteValue(new byte[] { 0x1B }, true, false);    // ESC + CR
 
-            // 모델 확인으로 ASCII 모드 진입 여부 판단. 시작 화면이 멈추지 않도록 별도 스레드에서 확인.
+            // 시작 화면이 멈추지 않도록 별도 스레드에서 진행.
             Task.Run(() =>
             {
-                string strResp = fn_Query("gcp", "Model");
+                //! ESC 단독 전송 후 USER> 프롬프트를 확인하고 다음 명령 전송.  2026/11/16
+                //  - ESC와 명령을 연달아 보내면 카메라가 모드 전환 중에 뒤의 입력을 무시하여,
+                //    프롬프트(USER>)만 오고 gcp 응답이 오지 않았음.
+                //  - 이미 ASCII 모드(DEK 1)면 프롬프트가 오지 않을 수 있으므로 무응답이어도 진행.
+                fn_Request(() => m_comm.WriteValue(new byte[] { 0x1B }, false, false), "USER", ESC_TIMEOUT);
+                Thread.Sleep(ESC_SETTLE_TIME);
+
+                // 모델 확인으로 ASCII 모드 진입 여부 판단. 응답이 없으면 재시도.
+                string strResp = null;
+                for (int i = 0; i < GCP_RETRY && strResp == null; i++)
+                {
+                    strResp = fn_Query("gcp", "Model");
+                }
                 m_bRecordRaw = false;
                 Match m = strResp != null ? Regex.Match(strResp, @"Model\s+(\S+)") : Match.Empty;
                 if (m.Success)
@@ -172,18 +187,30 @@ namespace KeocGrabber_Front
         /// <returns>응답 문자열. 타임아웃 시 null.</returns>
         private string fn_Query(string msg, string expect)
         {
+            return fn_Request(() => fn_WriteValue(msg), expect, m_nRecieveTimeout);
+        }
+
+        /// <summary>
+        /// 전송 후 판별 문자열이 포함된 응답을 대기.
+        /// </summary>
+        /// <param name="send">전송 동작</param>
+        /// <param name="expect">응답에 포함되어야 하는 문자열</param>
+        /// <param name="timeout">대기 시간 [ms]</param>
+        /// <returns>응답 문자열. 타임아웃 시 null.</returns>
+        private string fn_Request(Action send, string expect, int timeout)
+        {
             lock (m_lockCmd)
             {
                 m_strQueryResponse = null;
                 m_strExpect = expect;
-                fn_WriteValue(msg);
+                send();
 
                 Stopwatch sw = Stopwatch.StartNew();
                 string strResp;
                 while ((strResp = m_strQueryResponse) == null)
                 {
                     Thread.Sleep(50);
-                    if (sw.ElapsedMilliseconds > m_nRecieveTimeout)
+                    if (sw.ElapsedMilliseconds > timeout)
                     {
                         delWriteLog?.Invoke("Time-Out");
                         break;
