@@ -40,12 +40,18 @@ namespace KeocGrabber_Front
         const float GAIN_MIN = 1.0f;
         const float GAIN_MAX = 10.0f;
 
-        int m_nRecieveTimeout = 3000;
+        int m_nRecieveTimeout = 5000;               // gcp 출력이 길어 9600bps에서 1초 이상 걸림.
 
         readonly object m_lockCmd = new object();   // 조회 명령 동시 실행 방지.
         string m_strRecvBuff = "";
         volatile string m_strExpect = null;                  // 조회 중인 명령의 응답 판별 문자열.
         volatile string m_strQueryResponse = null;
+
+        //! ASCII 모드 진입 실패 원인 확인용 수신 원문.  2026/11/16
+        //  - 무응답(보레이트/배선 문제)과 응답 형식 차이를 로그로 구분하기 위해 진입 확인 중에만 기록.
+        readonly StringBuilder m_sbRaw = new StringBuilder();
+        volatile bool m_bRecordRaw = false;
+        const int RAW_LOG_MAX = 300;
 
         public void fn_Init(string comport)
         {
@@ -70,12 +76,15 @@ namespace KeocGrabber_Front
         /// </summary>
         private void fn_EnterAsciiMode()
         {
+            lock (m_sbRaw) m_sbRaw.Clear();
+            m_bRecordRaw = true;
             m_comm.WriteValue(new byte[] { 0x1B }, true, false);    // ESC + CR
 
             // 모델 확인으로 ASCII 모드 진입 여부 판단. 시작 화면이 멈추지 않도록 별도 스레드에서 확인.
             Task.Run(() =>
             {
                 string strResp = fn_Query("gcp", "Model");
+                m_bRecordRaw = false;
                 Match m = strResp != null ? Regex.Match(strResp, @"Model\s+(\S+)") : Match.Empty;
                 if (m.Success)
                 {
@@ -84,12 +93,43 @@ namespace KeocGrabber_Front
                 else
                 {
                     G.WriteLog($"Dalsa Linea ASCII Mode 진입 실패. 카메라 전원/포트 확인 필요. [{Comport}]", true);
+                    G.WriteLog($"Dalsa Linea 수신 데이터 : {fn_RawText()}", true);
                 }
             });
         }
 
+        /// <summary>
+        /// 기록한 수신 원문을 로그용 문자열로 변환. 제어 문자는 &lt;0xNN&gt;으로 표기.
+        /// </summary>
+        private string fn_RawText()
+        {
+            string strRaw;
+            lock (m_sbRaw) strRaw = m_sbRaw.ToString();
+            if (strRaw.Length == 0)
+                return "없음 (카메라 무응답. 보레이트/케이블/카메라 전원 확인)";
+
+            StringBuilder sb = new StringBuilder();
+            foreach (char c in strRaw)
+            {
+                if (sb.Length >= RAW_LOG_MAX) { sb.Append("..."); break; }
+                if (c == '\r') sb.Append("<CR>");
+                else if (c == '\n') sb.Append("<LF>");
+                else if (c < 0x20 || c > 0x7E) sb.Append($"<0x{(int)c:X2}>");
+                else sb.Append(c);
+            }
+            return $"[{strRaw.Length} byte] {sb}";
+        }
+
         private void RecvData(byte[] buff)
         {
+            if (m_bRecordRaw)
+            {
+                lock (m_sbRaw)
+                {
+                    foreach (byte b in buff) m_sbRaw.Append((char)b);
+                }
+            }
+
             m_strRecvBuff += Encoding.ASCII.GetString(buff);
 
             // 프롬프트 이전까지가 한 명령의 응답. 한 번에 여러 응답이 올 수 있으므로 반복.
