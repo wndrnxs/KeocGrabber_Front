@@ -147,7 +147,8 @@ namespace KeocGrabber_Front
                 MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_TIMEOUT, MIL.M_INFINITE);
                 MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_MODE, MIL.M_ASYNCHRONOUS);
 
-                // 센서 트리거 지연 설정.
+                // 센서 입력 확인 후 트리거 지연 설정. (지연 설정이 그랩 트리거 소스를 바꾸므로 먼저 확인)
+                fn_DetectSensorInput();
                 fn_SetGrabTriggerDelay(G.SYSTEM.GrabTriggerDelay);
 
                 delLog?.Invoke($"MIL Init.({BoardIndex})");
@@ -304,6 +305,36 @@ namespace KeocGrabber_Front
             MIL.M_AUX_IO12, MIL.M_AUX_IO13, MIL.M_AUX_IO14, MIL.M_AUX_IO15
         };
 
+        //! 센서 입력 정보.  2026/11/16
+        //  - DCF에 설정된 그랩 트리거 소스(센서가 연결된 AUX IO)와 극성.
+        //  - 센서 IO 상태 표시와 트리거 지연 설정에 사용.
+        int m_nSensorAuxIO = -1;
+        MIL_INT m_nSensorActivation = 0;
+
+        /// <summary>센서가 연결된 AUX IO 번호. 확인 불가 시 -1.</summary>
+        public int SensorAuxIO { get { return m_nSensorAuxIO; } }
+        /// <summary>센서 신호의 유효 엣지가 하강(Falling)인지 여부.</summary>
+        public bool IsSensorFalling
+        {
+            get { return m_nSensorActivation == MIL.M_EDGE_FALLING || m_nSensorActivation == MIL.M_LEVEL_LOW; }
+        }
+
+        /// <summary>
+        /// DCF에 설정된 그랩 트리거 소스로 센서 입력 확인.
+        /// </summary>
+        private void fn_DetectSensorInput()
+        {
+            MIL_INT nTrigSource = 0;
+            MIL.MdigInquire(m_MilDigitizer, MIL.M_GRAB_TRIGGER_SOURCE, ref nTrigSource);
+            MIL.MdigInquire(m_MilDigitizer, MIL.M_GRAB_TRIGGER_ACTIVATION, ref m_nSensorActivation);
+
+            m_nSensorAuxIO = Array.IndexOf(AUXIO_LIST, nTrigSource);
+            if (m_nSensorAuxIO < 0)
+                G.WriteLog($"센서 입력 확인 불가. 그랩 트리거 소스가 AUX IO가 아님. [{nTrigSource}]", true);
+            else
+                G.WriteLog($"Sensor Input.({BoardIndex}) [AUX_IO{m_nSensorAuxIO}, {(IsSensorFalling ? "Falling" : "Rising")}]");
+        }
+
         /// <summary>
         /// 센서 트리거 후 촬상 시작 지연 설정.
         /// </summary>
@@ -312,26 +343,21 @@ namespace KeocGrabber_Front
         {
             if (nDelayMs <= 0)
             {
-                delLog?.Invoke($"Grab Trigger Delay Disabled.({BoardIndex})");
+                G.WriteLog($"Grab Trigger Delay Disabled.({BoardIndex})");
                 return;
             }
 
-            // DCF에 설정된 센서 입력 확인.
-            MIL_INT nTrigSource = 0;
-            MIL_INT nTrigActivation = 0;
-            MIL.MdigInquire(m_MilDigitizer, MIL.M_GRAB_TRIGGER_SOURCE, ref nTrigSource);
-            MIL.MdigInquire(m_MilDigitizer, MIL.M_GRAB_TRIGGER_ACTIVATION, ref nTrigActivation);
-
-            int nAuxIO = Array.IndexOf(AUXIO_LIST, nTrigSource);
+            // DCF에 설정된 센서 입력 사용.
+            int nAuxIO = m_nSensorAuxIO;
             if (nAuxIO < 0)
             {
-                G.WriteLog($"Grab Trigger Delay Fail. 그랩 트리거 소스가 AUX IO가 아님. [{nTrigSource}] 지연 없이 동작.", true);
+                G.WriteLog($"Grab Trigger Delay Fail. 센서 입력(AUX IO) 확인 불가. 지연 없이 동작.", true);
                 return;
             }
+            MIL_INT nTrigSource = AUXIO_LIST[nAuxIO];
 
             // 타이머 트리거는 엣지만 사용하므로 레벨 설정은 같은 극성의 엣지로 변환.
-            MIL_INT nTimerActivation = (nTrigActivation == MIL.M_EDGE_FALLING || nTrigActivation == MIL.M_LEVEL_LOW)
-                                       ? MIL.M_EDGE_FALLING : MIL.M_EDGE_RISING;
+            MIL_INT nTimerActivation = IsSensorFalling ? MIL.M_EDGE_FALLING : MIL.M_EDGE_RISING;
 
             // 사용 중이지 않은 타이머 선택.
             int nTimerIdx = -1;
@@ -374,7 +400,7 @@ namespace KeocGrabber_Front
             MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_TRIGGER_SOURCE, nTimer);
             MIL.MdigControl(m_MilDigitizer, MIL.M_GRAB_TRIGGER_ACTIVATION, MIL.M_EDGE_RISING);
 
-            delLog?.Invoke($"Grab Trigger Delay Set.({BoardIndex}) [AUX_IO{nAuxIO}" +
+            G.WriteLog($"Grab Trigger Delay Set.({BoardIndex}) [AUX_IO{nAuxIO}" +
                            $"({(nTimerActivation == MIL.M_EDGE_FALLING ? "Falling" : "Rising")}) → TIMER{nTimerIdx + 1} → Grab, " +
                            $"{dDelayNs / 1000000.0:F1} ms]");
 
@@ -384,19 +410,20 @@ namespace KeocGrabber_Front
             }
         }
 
-        public bool fn_GetIOValue()
+        //! 센서 입력 상태 조회.  2026/11/16
+        //  - 기존에는 AUX IO5로 고정되어 있었으나, DCF의 센서 입력(그랩 트리거 소스)을 읽도록 변경.
+        /// <summary>
+        /// 센서 입력의 전기적 상태. (true : High)
+        /// </summary>
+        /// <returns>확인 불가 시 null.</returns>
+        public bool? fn_GetIOValue()
         {
+            if (m_MilDigitizer == MIL.M_NULL || m_nSensorAuxIO < 0)
+                return null;
+
             MIL_INT IOState = 0;
-            if (m_MilDigitizer != 0)
-            {
-                MIL.MdigInquire(m_MilDigitizer, MIL.M_IO_STATUS + MIL.M_AUX_IO5, ref IOState);
-            }
-            else
-            {
-                G.WriteLog("GetIOValue Error : MilDigitizer is Zero.");
-            }
-            bool bRet = IOState == 0 ? false : true;
-            return bRet;
+            MIL.MdigInquire(m_MilDigitizer, MIL.M_IO_STATUS + AUXIO_LIST[m_nSensorAuxIO], ref IOState);
+            return IOState != 0;
         }
     }
 }

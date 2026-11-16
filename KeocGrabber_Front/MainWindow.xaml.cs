@@ -208,6 +208,31 @@ namespace KeocGrabber_Front
             {
                 mc_pageMain.datacontext.Cam1Grab = G.IMAGEMANAGER.IsImageCompalte[0] ? "Compl" : "Wait";
             }
+
+            fn_UpdateSensor();
+        }
+
+        //! 센서 입력 표시 갱신.  2026/11/16
+        private void fn_UpdateSensor()
+        {
+            int nAuxIO = G.GRABBER.SensorAuxIO;
+            bool? bHigh = G.GRABBER.SensorState;
+            if (nAuxIO < 0 || bHigh == null)
+            {
+                mc_pageMain.datacontext.SensorState = "-";
+                mc_pageMain.datacontext.SensorInfo = "센서 입력 확인 불가 (DCF 트리거 설정 확인)";
+                return;
+            }
+
+            bool bFalling = G.GRABBER.IsSensorFalling;
+            bool bActive = bFalling ? !bHigh.Value : bHigh.Value;
+            DateTime? dtLast = G.GRABBER.SensorLastTime;
+
+            mc_pageMain.datacontext.SensorState = bActive ? "ON" : "OFF";
+            mc_pageMain.datacontext.SensorInfo =
+                $"AUX_IO{nAuxIO} ({(bFalling ? "Falling" : "Rising")})  " +
+                $"Count : {G.GRABBER.SensorCount}  " +
+                $"Last : {(dtLast.HasValue ? dtLast.Value.ToString("HH:mm:ss.fff") : "-")}";
         }
 
         public void fn_SetupUpdateAutority()

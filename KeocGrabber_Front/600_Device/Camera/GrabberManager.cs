@@ -54,6 +54,37 @@ namespace KeocGrabber_Front
 
         Thread thread = null;
 
+        //! 센서 입력 감시.  2026/11/16
+        //  - 그랩 트리거는 보드가 하드웨어로 처리하므로, 화면 표시용으로 센서 입력 상태를 주기적으로 읽음.
+        //  - 유효 엣지(DCF 극성 기준) 감지 횟수와 마지막 감지 시각을 기록.
+        //  - 주기 읽기 방식이므로 감시 주기보다 짧은 펄스는 놓칠 수 있음.
+        const int IOCHECK_INTERVAL = 1;     // [ms] (Windows 타이머 해상도에 따라 실제로는 1~15ms)
+        volatile bool m_bIOCheck = false;
+        volatile int m_nSensorCount = 0;
+        bool? m_bSensorState = null;
+        DateTime? m_dtSensorLast = null;
+        readonly object m_lockSensor = new object();
+
+        /// <summary>센서가 연결된 AUX IO 번호. 확인 불가 시 -1.</summary>
+        public int SensorAuxIO { get { return m_listGrabber.Count > 0 ? m_listGrabber[0].SensorAuxIO : -1; } }
+        /// <summary>센서 유효 엣지가 하강(Falling)인지 여부.</summary>
+        public bool IsSensorFalling { get { return m_listGrabber.Count > 0 && m_listGrabber[0].IsSensorFalling; } }
+        /// <summary>센서 입력의 현재 전기적 상태. (true : High, null : 확인 불가)</summary>
+        public bool? SensorState { get { lock (m_lockSensor) return m_bSensorState; } }
+        /// <summary>센서 유효 엣지 감지 횟수.</summary>
+        public int SensorCount { get { return m_nSensorCount; } }
+        /// <summary>마지막 센서 감지 시각.</summary>
+        public DateTime? SensorLastTime { get { lock (m_lockSensor) return m_dtSensorLast; } }
+
+        public void fn_ResetSensorCount()
+        {
+            lock (m_lockSensor)
+            {
+                m_nSensorCount = 0;
+                m_dtSensorLast = null;
+            }
+        }
+
         int[] m_nBufferCounter = new int[Define.CAM_COUNT];
 
         public void fn_Init(int boardcount, IList<string> dcflist)
@@ -101,6 +132,9 @@ namespace KeocGrabber_Front
                 //    m_listGrabber[2].IsInit &&
                 //    m_listGrabber[3].IsInit;
                 m_bIsInit = m_listGrabber[0].IsInit;
+
+                if (m_bIsInit)
+                    fn_StartThread();
             }
             catch (Exception ex)
             {
@@ -116,6 +150,7 @@ namespace KeocGrabber_Front
 
         public void fn_Final()
         {
+            fn_StopThread();
             try
             {
                 for (int i = 0; i < m_listGrabber.Count; i++)
@@ -292,41 +327,60 @@ namespace KeocGrabber_Front
 
         private void fn_StartThread()
         {
-            thread = new Thread(new ThreadStart(THREAD_IOCHECK));
+            if (m_listGrabber.Count == 0 || m_listGrabber[0].SensorAuxIO < 0)
+                return;
+
+            m_bIOCheck = true;
+            thread = new Thread(new ThreadStart(THREAD_IOCHECK)) { IsBackground = true };
             thread.Start();
         }
 
         private void fn_StopThread()
         {
-            if (thread.IsAlive)
+            m_bIOCheck = false;
+            if (thread != null && thread.IsAlive)
             {
-                thread.Abort();
-                thread = null;
+                if (!thread.Join(1000))
+                    thread.Abort();
             }
+            thread = null;
         }
 
         private void THREAD_IOCHECK()
         {
-            bool bPrevIO = false;
-            bool bCurrIO = false;
-            int nPrevIO = 0;
-            int nCurrIO = 0;
-            while(true)
+            bool? bPrevIO = null;
+            bool bFalling = m_listGrabber[0].IsSensorFalling;
+
+            while (m_bIOCheck)
             {
-                bCurrIO = m_listGrabber[0].fn_GetIOValue();
-
-                nCurrIO = bCurrIO ? 1 : 0;
-
-                if (nCurrIO - nPrevIO > 0)
+                try
                 {
-                    // Rising Edge.
-                    // IO On.
-                    //G.IMAGEMANAGER.InitAttachCount();
+                    bool? bCurrIO = m_listGrabber[0].fn_GetIOValue();
+
+                    lock (m_lockSensor)
+                    {
+                        m_bSensorState = bCurrIO;
+
+                        // DCF 극성 기준 유효 엣지 감지.
+                        if (bPrevIO.HasValue && bCurrIO.HasValue && bPrevIO.Value != bCurrIO.Value)
+                        {
+                            bool bActiveEdge = bFalling ? !bCurrIO.Value : bCurrIO.Value;
+                            if (bActiveEdge)
+                            {
+                                m_nSensorCount++;
+                                m_dtSensorLast = DateTime.Now;
+                            }
+                        }
+                    }
+                    bPrevIO = bCurrIO;
+                }
+                catch (Exception ex)
+                {
+                    G.WriteLog($"Sensor IO Check Error. [{ex.Message}]", true);
+                    Thread.Sleep(1000);
                 }
 
-                bPrevIO = bCurrIO;
-                nPrevIO = nCurrIO;
-
+                Thread.Sleep(IOCHECK_INTERVAL);
             }
         }
     }
